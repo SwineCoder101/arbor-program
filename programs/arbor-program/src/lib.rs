@@ -20,11 +20,11 @@ pub mod arbor_program {
     }
     
     pub fn top_up_order(ctx: Context<TopUpOrder>, amount: u64) -> Result<()> {
-        top_up_order::handler(ctx, amount)
+        ctx.accounts.top_up_order(amount)
     }
 
     pub fn claim_yield(ctx: Context<ClaimYield>) -> Result<()> {
-        claim_yield::handler(ctx)
+        ctx.accounts.claim_yield()
     }
 
     pub fn close_order(ctx: Context<CloseOrder>) -> Result<()> {
