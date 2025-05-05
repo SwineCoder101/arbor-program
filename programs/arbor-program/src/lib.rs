@@ -27,7 +27,7 @@ pub mod arbor_program {
         ctx.accounts.close_order()
     }
 
-    pub fn create_order(ctx: Context<CreateOrder>) -> Result<()> {
-        ctx.accounts.create_order()
+    pub fn create_order(ctx: Context<CreateOrder>, amount: u64) -> Result<()> {
+        ctx.accounts.create_order(amount)
     }
 }
