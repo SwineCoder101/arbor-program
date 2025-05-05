@@ -15,10 +15,6 @@ declare_id!("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
 pub mod arbor_program {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
-    }
-    
     pub fn top_up_order(ctx: Context<TopUpOrder>, amount: u64) -> Result<()> {
         ctx.accounts.top_up_order(amount)
     }
@@ -28,10 +24,10 @@ pub mod arbor_program {
     }
 
     pub fn close_order(ctx: Context<CloseOrder>) -> Result<()> {
-        close_order::handler(ctx)
+        ctx.accounts.close_order()
     }
 
-    pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
-        cancel_order::handler(ctx)
+    pub fn create_order(ctx: Context<CreateOrder>) -> Result<()> {
+        ctx.accounts.create_order()
     }
 }
