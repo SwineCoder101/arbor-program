@@ -1,8 +1,7 @@
-
+use anchor_lang::prelude::*;
 
 #[account]
 #[derive(InitSpace)]
-/// Global configuration for the program
 pub struct GlobalConfig {
     fee_bps: u64,
     admin: Pubkey,
@@ -12,7 +11,5 @@ pub struct GlobalConfig {
 #[account]
 #[derive(InitSpace)]
 pub struct ProgramAuthority {
+
 }
-
-
-

@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use crate::state::Order;
 #[derive(Accounts)]
 #[instruction(seed: u64)]
 pub struct TopUpOrder<'info> {
