@@ -1,15 +1,14 @@
 use anchor_lang::prelude::*;
 
-#[account]
+#[account(seeds = [b"config"], bump)]
 #[derive(InitSpace)]
 pub struct GlobalConfig {
-    fee_bps: u64,
-    admin: Pubkey,
+    pub fee_bps: u64,
+    pub admin: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub bump:  u8,
 }
-
-
-#[account]
+#[account(seeds = [b"auth"], bump)]
 #[derive(InitSpace)]
-pub struct ProgramAuthority {
 
-}
+pub struct ProgramAuthority {}
