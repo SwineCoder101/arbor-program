@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
-use anchor_spl::{associated_token::*, token::{Token,Transfer}, token_2022::AmountToUiAmount, token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked}};
+use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, GlobalConfig, ProgramAuthority};
+use crate::{state::Order, other::{GlobalConfig, ProgramAuthority}};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -69,7 +69,6 @@ impl<'info> CreateOrder<'info> {
         seed: u64,
         bumps: &CreateOrderBumps,
         amount: u64,
-        nonce:             u64,
         ratio_bps:         u64,
         drift_perp_idx:    u64,
         jup_perp_idx:      u64,
@@ -103,31 +102,23 @@ impl<'info> CreateOrder<'info> {
             amount
         });
 
+        self.transfer_to_vault(amount, self.drift_vault.to_account_info())?;
+        self.transfer_to_vault(amount, self.jupiter_vault.to_account_info())
 
+    }
+
+    fn transfer_to_vault(&mut self, amount : u64, protocol_vault: AccountInfo<'info> ) -> Result<()> {
         let transfer_cpi_program = self.token_program.to_account_info();
 
-        let transfer_accounts_drift = TransferChecked {
+        let transfer_accounts = TransferChecked {
             from: self.owner_ata.to_account_info(),
             mint: self.usdc_mint.to_account_info(),
-            to: self.drift_vault.to_account_info(),
-            authority: self.program_authority.to_account_info()
-        };        
-        
-        let transfer_accounts_jupiter = TransferChecked {
-            from: self.owner_ata.to_account_info(),
-            mint: self.usdc_mint.to_account_info(),
-            to: self.jupiter_vault.to_account_info(),
+            to: protocol_vault,
             authority: self.program_authority.to_account_info()
         };
 
-
-        let cpi_drift_ctx = CpiContext::new(transfer_cpi_program, transfer_accounts_drift);
-        let cpi_jupiter_ctx = CpiContext::new(transfer_cpi_program, transfer_accounts_jupiter);
+        let cpi_ctx = CpiContext::new(transfer_cpi_program.clone(), transfer_accounts);
         
-        
-        
-        transfer_checked(cpi_drift_ctx, amount, self.usdc_mint.decimals);
-
-        Ok(())
+        transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
     }
 }
