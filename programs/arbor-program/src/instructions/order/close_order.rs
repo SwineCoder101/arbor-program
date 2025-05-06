@@ -2,12 +2,14 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
 
-use crate::{state::Order, other::{GlobalConfig, ProgramAuthority}};
+use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::Order};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
 pub struct CloseOrder<'info> {
 
+
+    // owner of the order is the taker
     #[account(mut)]
     pub owner: Signer<'info>,
 
@@ -64,10 +66,12 @@ impl<'info> CloseOrder<'info> {
 
     pub fn close_order(&mut self) -> Result<()> {
 
+        //check owner of the order
+        require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedCloseOrder);
+
         // charge a fee and transfer to treasury
         self.charge_fee_to_treasury(self.drift_vault.to_account_info())?;
         self.charge_fee_to_treasury(self.jupiter_vault.to_account_info())?;
-
 
         // transfer remaining to user
         self.transfer_to_user(self.order.drift_perp_amount, self.drift_vault.to_account_info())?;
