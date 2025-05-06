@@ -18,13 +18,16 @@ pub struct Order {
     pub drift_side: u8,
     pub jup_side: u8,
 
+    // amount for deposit 
+    pub amount: u64,
+
 
     /* solend loan refs */
-    pub reserve_address: Pubkey,
-    pub liquidity_address: Pubkey,
-    pub ctoken_mint: Pubkey,
-    pub collateral_amount: u64,
-    pub underlying_collateral_mint: Pubkey,
+    // pub reserve_address: Pubkey,
+    // pub liquidity_address: Pubkey,
+    // pub ctoken_mint: Pubkey,
+    // pub collateral_amount: u64,
+    // pub underlying_collateral_mint: Pubkey,
 
     /* bookkeeyping */
     pub last_price_pv: u64,
