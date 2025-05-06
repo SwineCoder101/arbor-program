@@ -10,16 +10,16 @@ pub struct Order {
     pub is_open: bool,
 
     /* hedge params */
-    pub ratio_bps: u64,
+    pub ratio_bps: u64, // long / short
     pub drift_perp_idx: u64,
     pub jup_perp_idx: u64,
+
+    pub drift_perp_amount: u64,
+    pub jup_perp_amount: u64,
     
     // 0 long, 1 short
     pub drift_side: u8,
     pub jup_side: u8,
-
-    // amount for deposit 
-    pub amount: u64,
 
 
     /* solend loan refs */
