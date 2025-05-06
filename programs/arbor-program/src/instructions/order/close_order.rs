@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{token::Token, token_interface::TokenAccount};
+use anchor_spl::token::{Token, TokenAccount};
+use crate::state::{Order, other::ProgramAuthority};
 
-use crate::{state::Order, ProgramAuthority};
 #[derive(Accounts)]
 #[instruction(seed: u64)]
 pub struct CloseOrder<'info> {
@@ -16,7 +16,8 @@ pub struct CloseOrder<'info> {
     pub program_authority: Account<'info, ProgramAuthority>,
 
     #[account(mut)]
-    pub treasury_vault: Box<Account<'info, TokenAccount>>,
+    pub treasury_vault: Account<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token>,
 }
 
