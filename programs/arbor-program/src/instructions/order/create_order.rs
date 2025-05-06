@@ -53,9 +53,6 @@ pub struct CreateOrder<'info> {
     )]
     pub drift_vault: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(mint::token_program = token_program)]
-    pub collateral_mint: InterfaceAccount<'info,Mint>,
-
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -68,7 +65,8 @@ impl<'info> CreateOrder<'info> {
         &mut self,
         seed: u64,
         bumps: &CreateOrderBumps,
-        amount: u64,
+        jup_perp_amount: u64,
+        drift_perp_amount: u64,
         ratio_bps:         u64,
         drift_perp_idx:    u64,
         jup_perp_idx:      u64,
@@ -99,11 +97,12 @@ impl<'info> CreateOrder<'info> {
             jup_perp_idx,
             last_arbitrage_rate,
             last_price_pv,
-            amount
+            drift_perp_amount,
+            jup_perp_amount,
         });
 
-        self.transfer_to_vault(amount, self.drift_vault.to_account_info())?;
-        self.transfer_to_vault(amount, self.jupiter_vault.to_account_info())
+        self.transfer_to_vault(drift_perp_amount, self.drift_vault.to_account_info())?;
+        self.transfer_to_vault(jup_perp_amount, self.jupiter_vault.to_account_info())
 
     }
 

@@ -11,4 +11,6 @@ pub struct GlobalConfig {
 
 #[account]
 #[derive(InitSpace)]
-pub struct ProgramAuthority {}
+pub struct ProgramAuthority {
+    pub bump: u8,
+}
