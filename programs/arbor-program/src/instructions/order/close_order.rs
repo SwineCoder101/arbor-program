@@ -39,20 +39,28 @@ pub struct CloseOrder<'info> {
     pub program_authority: Account<'info, ProgramAuthority>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        mut,
+        close = owner,
+        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
+    pub jupiter_vault: Account<'info, TokenAccount>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        mut,
+        close = owner,
+        seeds = [b"vault", b"drift", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
+    pub drift_vault: Account<'info, TokenAccount>,
 
     #[account(mut)]
     pub treasury_vault: Account<'info, TokenAccount>,
@@ -77,10 +85,34 @@ impl<'info> CloseOrder<'info> {
         self.transfer_to_user(self.order.drift_perp_amount, self.drift_vault.to_account_info())?;
         self.transfer_to_user(self.order.jup_perp_amount, self.jupiter_vault.to_account_info())?;
 
-        // close order account
-        self.close_order_account()
+        // close accounts
+        self.close_order_account()?;
+        self.close_vault_account(self.jupiter_vault.to_account_info())?;
+        self.close_vault_account(self.drift_vault.to_account_info())?;
 
+        Ok(())
     }
+
+    fn close_vault_account(&mut self, protocol_vault: AccountInfo<'info>) -> Result<()> {
+        let cpi_program: AccountInfo<'_> = self.system_program.to_account_info();
+
+        let close_accounts = CloseAccount {
+            account: self.order.to_account_info(),
+            destination: protocol_vault,
+            authority: self.program_authority.to_account_info()
+        };
+
+        let signer_seeds : [&[&[u8]] ;1]= [&[
+            b"auth",
+            self.program_authority.to_account_info().key.as_ref(),
+            &[self.program_authority.bump]]
+        ];
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
+
+        close_account(cpi_ctx)
+    }
+    
 
     fn close_order_account(&mut self) -> Result<()> {
 
