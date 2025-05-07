@@ -27,6 +27,10 @@ pub mod arbor_program {
         ctx.accounts.close_order()
     }
 
+    pub fn withdraw_from_treasury(ctx: Context<WithdrawFromTreasury>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw_from_treasury(amount)
+    }
+
     pub fn create_order(
         ctx: Context<CreateOrder>,
         seed: u64,
