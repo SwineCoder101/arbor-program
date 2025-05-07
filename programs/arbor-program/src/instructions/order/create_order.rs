@@ -38,20 +38,28 @@ pub struct CreateOrder<'info> {
     pub program_authority: Account<'info, ProgramAuthority>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        init_if_needed,
+        payer = owner,
+        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
+    pub jupiter_vault: Account<'info, TokenAccount>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        init_if_needed,
+        payer = owner,
+        seeds = [b"vault", b"drift", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
+    pub drift_vault: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

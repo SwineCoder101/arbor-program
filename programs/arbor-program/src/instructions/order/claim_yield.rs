@@ -37,20 +37,26 @@ pub struct ClaimYield<'info> {
     pub program_authority: Account<'info, ProgramAuthority>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        mut,
+        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
+    pub jupiter_vault: Account<'info, TokenAccount>,
 
 
-    #[account(mut, 
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+    #[account(
+        mut,
+        seeds = [b"vault", b"drift", order.key().as_ref()],
+        bump,
+        token::mint = usdc_mint,
+        token::authority = program_authority,
+        token::token_program = token_program,
     )]
-    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
+    pub drift_vault: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -60,10 +66,33 @@ pub struct ClaimYield<'info> {
 impl<'info> ClaimYield<'info> {
 
     pub fn claim_yield(&mut self) -> Result<()> {
-        todo!();
+        let drift_yield = self.drift_vault.amount;
+        let jupiter_yield = self.jupiter_vault.amount;
+
+        self.transfer_to_user(drift_yield, self.drift_vault.to_account_info())?;
+        self.transfer_to_user(jupiter_yield, self.jupiter_vault.to_account_info())?;
+
+        Ok(())
     }
 
-    pub fn transfer_to_user(&mut self) -> Result<()> {
-        todo!();
+    pub fn transfer_to_user(&mut self, amount: u64, protocol_vault: AccountInfo<'info>) -> Result<()> {
+        let cpi_program = self.token_program.to_account_info();
+
+        let transfer_accounts = TransferChecked {
+            from: protocol_vault,
+            mint: self.usdc_mint.to_account_info(),
+            to: self.owner_ata.to_account_info(),
+            authority: self.program_authority.to_account_info()
+        };
+
+        let signer_seeds : [&[&[u8]] ;1]= [&[
+            b"auth",
+            self.program_authority.to_account_info().key.as_ref(),
+            &[self.program_authority.bump]]
+        ];
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, &signer_seeds);
+
+        transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
     }
 }
