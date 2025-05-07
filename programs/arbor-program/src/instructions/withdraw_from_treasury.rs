@@ -21,10 +21,10 @@ pub struct WithdrawFromTreasury<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = admin
     )]
-    pub admin_ata: Account<'info, TokenAccount>,
+    pub admin_ata: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mut)]
-    pub treasury_vault: Account<'info, TokenAccount>,
+    pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mint::token_program = token_program)]
     pub usdc_mint: InterfaceAccount<'info,Mint>,

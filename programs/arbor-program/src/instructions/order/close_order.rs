@@ -41,29 +41,27 @@ pub struct CloseOrder<'info> {
 
     #[account(
         mut,
-        close = owner,
         seeds = [b"vault", b"jupit", order.key().as_ref()],
         bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub jupiter_vault: Account<'info, TokenAccount>,
+    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
 
 
     #[account(
         mut,
-        close = owner,
         seeds = [b"vault", b"drift", order.key().as_ref()],
         bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub drift_vault: Account<'info, TokenAccount>,
+    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mut)]
-    pub treasury_vault: Account<'info, TokenAccount>,
+    pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
