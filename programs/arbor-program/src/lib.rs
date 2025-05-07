@@ -35,7 +35,8 @@ pub mod arbor_program {
         ctx: Context<CreateOrder>,
         seed: u64,
         bumps_in: u8,
-        amount: u64,
+        jup_perp_amount: u64,
+        drift_perp_amount: u64,
         ratio_bps: u64,
         drift_perp_idx: u64,
         jup_perp_idx: u64,
@@ -45,14 +46,17 @@ pub mod arbor_program {
 
         let bumps: CreateOrderBumps = CreateOrderBumps {
             order: bumps_in,
-            program_authority: bumps_in
+            program_authority: bumps_in,
+            jupiter_vault: bumps_in,
+            drift_vault: bumps_in,
         };
 
 
         ctx.accounts.create_order(
             seed,
             &bumps,
-            amount,
+            jup_perp_amount,
+            drift_perp_amount,
             ratio_bps,
             drift_perp_idx,
             jup_perp_idx,

@@ -45,7 +45,7 @@ pub struct ClaimYield<'info> {
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub jupiter_vault: Account<'info, TokenAccount>,
+    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
 
 
     #[account(
@@ -56,7 +56,7 @@ pub struct ClaimYield<'info> {
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub drift_vault: Account<'info, TokenAccount>,
+    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
