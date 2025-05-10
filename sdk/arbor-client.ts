@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { ArborProgram } from "../target/types/arbor_program";
 import { PublicKey } from "@solana/web3.js";
+import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, TopUpOrderInput } from "./types";
 
 export class ArborClient {
   private program: Program<ArborProgram>;
@@ -42,21 +43,28 @@ export class ArborClient {
   }
 
   // Program Instructions
-  async createOrder(
-    seed: number,
-    jupPerpAmount: number,
-    driftPerpAmount: number,
-    ratioBps: number,
-    driftPerpIdx: number,
-    jupPerpIdx: number,
-    driftSide: number,
-    jupSide: number
-  ) {
+  async createOrder( {
+    seed,
+    jupPerpAmount,
+    driftPerpAmount,
+    ratioBps,
+    driftPerpIdx,
+    jupPerpIdx,
+    driftSide,
+    jupSide
+  }: CreateOrderInput) {
     const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
     const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
+
+    // console.log("orderAddress", orderAddress.toBase58());
+    // console.log("globalConfigAddress", globalConfigAddress.toBase58());
+    // console.log("programAuthorityAddress", programAuthorityAddress.toBase58());
+    // console.log("jupiterVaultAddress", jupiterVaultAddress.toBase58());
+    // console.log("driftVaultAddress", driftVaultAddress.toBase58());
+
 
     const globalConfig = await this.program.account.globalConfig.fetch(globalConfigAddress);
     
@@ -93,7 +101,7 @@ export class ArborClient {
       .rpc();
   }
 
-  async closeOrder(seed: number, treasuryVault: PublicKey) {
+  async closeOrder({seed, treasuryVault}: CloseOrderInput) {
     const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
@@ -126,7 +134,7 @@ export class ArborClient {
       .rpc();
   }
 
-  async claimYield(seed: number) {
+  async claimYield({seed} : ClaimYieldInput) {
     const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
@@ -158,7 +166,7 @@ export class ArborClient {
       .rpc();
   }
 
-  async topUpOrder(seed: number, amount: number, treasuryVault: PublicKey) {
+  async topUpOrder({seed, amount, treasuryVault}: TopUpOrderInput) {
     const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
@@ -187,6 +195,27 @@ export class ArborClient {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+      })
+      .rpc();
+  }
+
+  async initializeConfig(feeBps: number, admin: PublicKey, usdcMint: PublicKey) {
+    const [globalConfigAddress, bump] = await ArborClient.findGlobalConfigAddress();
+    const [programAuthorityAddress, programAuthorityBump] = await ArborClient.findProgramAuthorityAddress();
+
+    return await this.program.methods
+      .initializeConfig(
+        new anchor.BN(feeBps),
+        admin,
+        usdcMint,
+        bump,
+        programAuthorityBump
+      )
+      .accountsStrict({
+        signer: this.provider.wallet.publicKey,
+        globalConfig: globalConfigAddress,
+        programAuthority: programAuthorityAddress,
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .rpc();
   }

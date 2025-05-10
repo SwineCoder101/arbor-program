@@ -31,6 +31,14 @@ pub mod arbor_program {
         ctx.accounts.withdraw_from_treasury(amount)
     }
 
+    pub fn initialize_config(ctx: Context<InitializeConfig>, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey, bump: u8, program_authority_bump: u8) -> Result<()> {
+        ctx.accounts.initialize_config(fee_bps, admin, usdc_mint, bump, program_authority_bump)
+    }
+
+    // pub fn keeper_withdraw_yield(ctx: Context<KeeperWithdrawYield>, amount: u64) -> Result<()> {
+    //     ctx.accounts.keeper_withdraw_yield(amount)
+    // }
+
     pub fn create_order(
         ctx: Context<CreateOrder>,
         seed: u64,
