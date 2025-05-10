@@ -9,8 +9,27 @@ export async function setupWalletsAndMints(provider: anchor.AnchorProvider) {
     console.log("setting up wallets and mints");
     const admin = await setupAdmin(provider);
     const usdcMint = await setupUSDCMint(provider, admin);
-    const trader = await setupTraderWallet(provider, usdcMint.publicKey);
-    const usdcReserve = await setupUSDCReserveWallet(provider, usdcMint.publicKey);
+
+    const mintData = await spl.getMint(provider.connection, usdcMint.publicKey);
+    console.log('Mint Info:', {
+        address: usdcMint.publicKey.toBase58(),
+        decimals: mintData.decimals,
+        supply: mintData.supply.toString(),
+        mintAuthority: mintData.mintAuthority?.toBase58(),
+        freezeAuthority: mintData.freezeAuthority?.toBase58()
+    });
+    
+    const trader = await setupTraderWallet(provider, usdcMint.publicKey, admin);
+    const usdcReserve = await setupUSDCReserveWallet(provider, usdcMint.publicKey, admin);
+
+    const ataInfo = await provider.connection.getAccountInfo(trader.ata);
+    console.log('ATA Info:', {
+        address: trader.ata.toBase58(),
+        mint: ataInfo ? new PublicKey(ataInfo.data.slice(0, 32)).toBase58() : 'None',
+        owner: ataInfo ? new PublicKey(ataInfo.data.slice(32, 64)).toBase58() : 'None',
+        amount: ataInfo ? new anchor.BN(ataInfo.data.slice(64, 72), 'le').toString() : 'None'
+    });
+    
     console.log("done setting up wallets and mints");
     return { usdcMint, trader, usdcReserve, admin };
 }
@@ -29,28 +48,50 @@ export async function setupAdmin(provider: anchor.AnchorProvider) {
     return admin;
 }
 
-export async function setupTraderWallet(provider: anchor.AnchorProvider, usdcMint: PublicKey) {
+export async function setupTraderWallet(
+    provider: anchor.AnchorProvider, 
+    usdcMint: PublicKey,
+    mintAuthority: anchor.web3.Keypair
+) {
     const wallet = anchor.web3.Keypair.generate();
     await fundAccountWithSol(provider, wallet.publicKey, 2);
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000);
     const balance = await provider.connection.getBalance(wallet.publicKey);
-    console.log(`Trader Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance} and ATA: ${ata.toBase58()}`)
+    console.log(`Trader Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
+
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000, mintAuthority);
     return { wallet, ata };
 }
 
-export async function setupUSDCReserveWallet(provider: anchor.AnchorProvider, usdcMint: PublicKey) {
+export async function setupUSDCReserveWallet(
+    provider: anchor.AnchorProvider, 
+    usdcMint: PublicKey,
+    mintAuthority: anchor.web3.Keypair
+) {
     const wallet = anchor.web3.Keypair.generate();
     await fundAccountWithSol(provider, wallet.publicKey, 2);
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 1_000_000_000_000_000_000);
     const balance = await provider.connection.getBalance(wallet.publicKey);
-
-    console.log(`USDC Reserve Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance} and ATA: ${ata.toBase58()}`)
+    console.log(`Funding USDC Reserve Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 1_000_000_000_000_000_000, mintAuthority);
     return { wallet, ata };
 }
 
-export async function fundAccountWithUSDC(provider: anchor.AnchorProvider, owner: anchor.web3.Keypair, usdcMint: PublicKey, amount: number) {
+
+export async function fundAccountWithUSDC(
+    provider: anchor.AnchorProvider, 
+    owner: anchor.web3.Keypair, 
+    usdcMint: PublicKey, 
+    amount: number,
+    mintAuthority: anchor.web3.Keypair
+) {
     const ata = await createATA(usdcMint, owner, provider);
-    await mintTo(usdcMint, ata, new anchor.BN(amount), provider, owner);
+    
+    // Verify the ATA was created
+    const ataInfo = await provider.connection.getAccountInfo(ata);
+    if (!ataInfo) {
+        throw new Error(`Failed to create ATA for ${owner.publicKey.toBase58()}`);
+    }
+
+    await mintTo(usdcMint, ata, new anchor.BN(amount), provider, mintAuthority);
 
     const balance = await provider.connection.getTokenAccountBalance(ata);
     console.log(`${owner.publicKey.toBase58()} has ${balance.value.amount} USDC`);
@@ -58,10 +99,24 @@ export async function fundAccountWithUSDC(provider: anchor.AnchorProvider, owner
 }
 
 export async function setupUSDCMint(provider: anchor.AnchorProvider, signer: Keypair) {
-    const usdcMint = anchor.web3.Keypair.generate();
-    await createMint(6, provider, signer);
-    console.log(`USDC Mint: ${usdcMint.publicKey.toBase58()}`)
-    return usdcMint;
+    const usdcMintKeypair = anchor.web3.Keypair.generate();
+    
+    const mint = await spl.createMint(
+        provider.connection,
+        signer,
+        signer.publicKey,
+        null,           
+        6,
+        usdcMintKeypair 
+    );
+    
+    console.log(`USDC Mint: ${mint.toBase58()}`);
+    console.log(`Mint Authority: ${signer.publicKey.toBase58()}`);
+    
+    return { 
+        publicKey: mint,
+        keypair: usdcMintKeypair 
+    };
 }
 
 export async function fundAccountWithSol(provider: anchor.AnchorProvider, pubkey: anchor.web3.PublicKey, amount: number) {
@@ -77,48 +132,75 @@ export async function fundAccountWithSol(provider: anchor.AnchorProvider, pubkey
     decimals: number,
     provider: anchor.AnchorProvider,
     signer: anchor.web3.Keypair
-  ): Promise<PublicKey> {
+): Promise<PublicKey> {
     return await spl.createMint(
-      provider.connection,
-      signer,
-      provider.wallet.publicKey,
-      null,
-      decimals,
-    );
-  }
-
-  export async function createATA(mint: anchor.web3.PublicKey, owner: Keypair, provider: anchor.AnchorProvider) {
-    // const ata = await spl.getAssociatedTokenAddress(
-    //     mint,
-    //     owner.publicKey,
-    //     false,
-    //     spl.TOKEN_PROGRAM_ID
-    //   );
-    // console.log(`ATA: ${ata.toBase58()}`)
-
-    console.log(`Creating ATA for ${owner.publicKey.toBase58()}`)
-    return await spl.createAssociatedTokenAccount(
         provider.connection,
-        owner,
+        signer,
+        signer.publicKey,  
+        null,             
+        decimals,
+    );
+}
+
+export async function createATA(
+    mint: anchor.web3.PublicKey, 
+    owner: Keypair, 
+    provider: anchor.AnchorProvider
+) {
+    const ata = await spl.getAssociatedTokenAddress(
         mint,
         owner.publicKey,
-        {
-            commitment: "finalized"
-        },
+        false,
+        spl.TOKEN_PROGRAM_ID,
         spl.ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-    // console.log(`Created ATA: ${ata.toBase58()}`)
-    // return ata;
-  }
-
-
-  export async function mintTo(mint: anchor.web3.PublicKey, ata: anchor.web3.PublicKey,  amount: anchor.BN, provider: anchor.AnchorProvider, signer: anchor.web3.Keypair) {
-    await spl.mintTo(
-      provider.connection,
-      signer,
-      mint,
-      ata,
-      signer.publicKey,
-      amount.toNumber()
     );
-  }
+
+    try {
+        const ataInfo = await provider.connection.getAccountInfo(ata);
+        if (!ataInfo) {
+            console.log(`Creating new ATA for ${owner.publicKey.toBase58()}`);
+            await spl.createAssociatedTokenAccount(
+                provider.connection,
+                owner,
+                mint,
+                owner.publicKey,
+                { commitment: "confirmed" }
+            );
+        }
+        return ata;
+    } catch (error) {
+        console.error(`Error creating ATA: ${error}`);
+        throw error;
+    }
+}
+
+
+export async function mintTo(
+    mint: anchor.web3.PublicKey,
+    ata: anchor.web3.PublicKey,
+    amount: anchor.BN,
+    provider: anchor.AnchorProvider,
+    authority: anchor.web3.Keypair
+) {
+    try {
+        console.log(`Minting to ${ata.toBase58()}`);
+        console.log(`Using authority ${authority.publicKey.toBase58()}`);
+        
+        const tx = await spl.mintTo(
+            provider.connection,
+            authority,
+            mint,
+            ata,
+            authority,
+            amount.toNumber(),
+            undefined,
+            { commitment: "confirmed" }
+        );
+        
+        console.log(`Mint successful: ${tx}`);
+        return tx;
+    } catch (error) {
+        console.error(`Error minting tokens:`, error);
+        throw error;
+    }
+}
