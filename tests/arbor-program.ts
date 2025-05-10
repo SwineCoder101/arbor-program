@@ -21,18 +21,45 @@ describe("arbor-program", () => {
     console.log("balance: ", balance);
 
     try { 
-      const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
-   
-    
-    console.log("Using USDC Mint:", usdcMint.publicKey.toBase58());
-    
-    await client.initializeConfig(
-        100, // 1% fee
-        provider.wallet.publicKey,
-        usdcMint.publicKey,
-    );
+        const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
+        
+        console.log("Using USDC Mint:", usdcMint.publicKey.toBase58());
+        
+        // Verify USDC mint exists
+        const mintInfo = await provider.connection.getAccountInfo(usdcMint.publicKey);
+        if (!mintInfo) {
+            throw new Error("USDC Mint account not found");
+        }
+
+        // Initialize config
+        await client.initializeConfig(
+            100, // 1% fee
+            provider.wallet.publicKey,
+            usdcMint.publicKey
+        );
+
+        // Additional verification
+        const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
+        const accountInfo = await provider.connection.getAccountInfo(globalConfigAddress);
+        if (!accountInfo) {
+            throw new Error("GlobalConfig account not created");
+        }
+
+        console.log("GlobalConfig account created with data length:", accountInfo.data.length);
+
+        // Try to fetch the account
+        const globalConfig = await client.getGlobalConfig();
+        console.log("GlobalConfig fetched successfully:", {
+            feeBps: globalConfig.feeBps.toNumber(),
+            admin: globalConfig.admin.toBase58(),
+            usdcMint: globalConfig.usdcMint.toBase58(),
+            bump: globalConfig.bump
+        });
+
+        console.log("Setup completed successfully");
     } catch (error) {
-      console.error("Error setting up wallets and mints:", error);
+        console.error("Error in before hook:", error);
+        throw error;
     } 
 });
 

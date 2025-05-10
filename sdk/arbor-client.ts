@@ -199,26 +199,71 @@ export class ArborClient {
       .rpc();
   }
 
-  async initializeConfig(feeBps: number, admin: PublicKey, usdcMint: PublicKey) {
-    const [globalConfigAddress, bump] = await ArborClient.findGlobalConfigAddress();
-    const [programAuthorityAddress, programAuthorityBump] = await ArborClient.findProgramAuthorityAddress();
 
-    return await this.program.methods
-      .initializeConfig(
-        new anchor.BN(feeBps),
-        admin,
-        usdcMint,
-        bump,
-        programAuthorityBump
-      )
-      .accountsStrict({
-        signer: this.provider.wallet.publicKey,
-        globalConfig: globalConfigAddress,
-        programAuthority: programAuthorityAddress,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .rpc();
-  }
+  async initializeConfig(feeBps: number, admin: PublicKey, usdcMint: PublicKey) {
+    const [globalConfigAddress, configBump] = await ArborClient.findGlobalConfigAddress();
+    const [programAuthorityAddress, authBump] = await ArborClient.findProgramAuthorityAddress();
+
+    console.log('Initializing config with:');
+    console.log('- Fee BPS:', feeBps);
+    console.log('- Admin:', admin.toBase58());
+    console.log('- USDC Mint:', usdcMint.toBase58());
+    console.log('- Config Bump:', configBump);
+    console.log('- Auth Bump:', authBump);
+
+    try {
+        // Initialize the accounts
+        const tx = await this.program.methods
+            .initializeConfig(
+                new anchor.BN(feeBps),
+                admin,
+                usdcMint,
+                configBump,
+                authBump
+            )
+            .accountsStrict({
+                signer: this.provider.wallet.publicKey,
+                globalConfig: globalConfigAddress,
+                programAuthority: programAuthorityAddress,
+                systemProgram: anchor.web3.SystemProgram.programId,
+            })
+            .rpc();
+
+        console.log('Config initialized successfully:', tx);
+
+        // Verify the account was created
+        const accountInfo = await this.provider.connection.getAccountInfo(globalConfigAddress);
+        if (!accountInfo) {
+            throw new Error("GlobalConfig account not created");
+        }
+
+        // Verify the account can be deserialized
+        const config = await this.program.account.globalConfig.fetch(globalConfigAddress);
+        console.log('Config initialized with:', {
+            feeBps: config.feeBps.toNumber(),
+            admin: config.admin.toBase58(),
+            usdcMint: config.usdcMint.toBase58(),
+            bump: config.bump
+        });
+
+        return tx;
+    } catch (error) {
+        console.error('Error initializing config:', error);
+        
+        // Additional debug: check if account exists but fails to deserialize
+        try {
+            const accountInfo = await this.provider.connection.getAccountInfo(globalConfigAddress);
+            console.log('Account exists:', accountInfo !== null);
+            if (accountInfo) {
+                console.log('Account data length:', accountInfo.data.length);
+            }
+        } catch (e) {
+            console.error('Error checking account:', e);
+        }
+        
+        throw error;
+    }
+}
 
   // Account Getters
   async getOrder(seed: number) {
