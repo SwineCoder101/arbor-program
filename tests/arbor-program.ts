@@ -14,19 +14,23 @@ describe("arbor-program", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const client = new ArborClient(provider);
 
+
   before(async () => {
     console.log("provider.wallet.publicKey", provider.wallet.publicKey.toBase58());
-    //balance of provider.wallet.publicKey
     const balance = await provider.connection.getBalance(provider.wallet.publicKey);
     console.log("balance: ", balance);
 
     const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
+    
+    // Make sure to use usdcMint.publicKey
+    console.log("Using USDC Mint:", usdcMint.publicKey.toBase58());
+    
     await client.initializeConfig(
-      100, // 1% fee
-      provider.wallet.publicKey,
-      usdcMint.publicKey,
+        100, // 1% fee
+        provider.wallet.publicKey,
+        usdcMint.publicKey,
     );
-  });
+});
 
   // Helper to create a test order
   const createTestOrder = async (seed: number, ratioBps: number = 5000) => {
