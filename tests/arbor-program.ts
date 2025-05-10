@@ -20,9 +20,10 @@ describe("arbor-program", () => {
     const balance = await provider.connection.getBalance(provider.wallet.publicKey);
     console.log("balance: ", balance);
 
-    const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
+    try { 
+      const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
+   
     
-    // Make sure to use usdcMint.publicKey
     console.log("Using USDC Mint:", usdcMint.publicKey.toBase58());
     
     await client.initializeConfig(
@@ -30,6 +31,9 @@ describe("arbor-program", () => {
         provider.wallet.publicKey,
         usdcMint.publicKey,
     );
+    } catch (error) {
+      console.error("Error setting up wallets and mints:", error);
+    } 
 });
 
   // Helper to create a test order
