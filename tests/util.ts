@@ -23,12 +23,12 @@ export async function setupWalletsAndMints(provider: anchor.AnchorProvider) {
     const usdcReserve = await setupUSDCReserveWallet(provider, usdcMint.publicKey, admin);
 
     const ataInfo = await provider.connection.getAccountInfo(trader.ata);
-    console.log('ATA Info:', {
-        address: trader.ata.toBase58(),
-        mint: ataInfo ? new PublicKey(ataInfo.data.slice(0, 32)).toBase58() : 'None',
-        owner: ataInfo ? new PublicKey(ataInfo.data.slice(32, 64)).toBase58() : 'None',
-        amount: ataInfo ? new anchor.BN(ataInfo.data.slice(64, 72), 'le').toString() : 'None'
-    });
+    // console.log('ATA Info:', {
+    //     address: trader.ata.toBase58(),
+    //     mint: ataInfo ? new PublicKey(ataInfo.data.slice(0, 32)).toBase58() : 'None',
+    //     owner: ataInfo ? new PublicKey(ataInfo.data.slice(32, 64)).toBase58() : 'None',
+    //     amount: ataInfo ? new anchor.BN(ataInfo.data.slice(64, 72), 'le').toString() : 'None'
+    // });
     
     console.log("done setting up wallets and mints");
     return { usdcMint, trader, usdcReserve, admin };
@@ -58,7 +58,7 @@ export async function setupTraderWallet(
     const balance = await provider.connection.getBalance(wallet.publicKey);
     console.log(`Trader Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
 
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000, mintAuthority);
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000, mintAuthority);
     return { wallet, ata };
 }
 
@@ -71,7 +71,7 @@ export async function setupUSDCReserveWallet(
     await fundAccountWithSol(provider, wallet.publicKey, 2);
     const balance = await provider.connection.getBalance(wallet.publicKey);
     console.log(`Funding USDC Reserve Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 1_000_000_000_000_000_000, mintAuthority);
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 1_000_000_000, mintAuthority);
     return { wallet, ata };
 }
 
@@ -80,7 +80,7 @@ export async function fundAccountWithUSDC(
     provider: anchor.AnchorProvider, 
     owner: anchor.web3.Keypair, 
     usdcMint: PublicKey, 
-    amount: number,
+    amount: number = 100_000_000,
     mintAuthority: anchor.web3.Keypair
 ) {
     const ata = await createATA(usdcMint, owner, provider);
