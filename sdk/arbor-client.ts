@@ -13,32 +13,34 @@ export class ArborClient {
     this.program = anchor.workspace.ArborProgram as Program<ArborProgram>;
   }
 
+  public static ARBOR_PROGRAM_ID = new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
+
   // Helper to derive PDA addresses
   static async findOrderAddress(owner: PublicKey, seed: number): Promise<[PublicKey, number]> {
     return await PublicKey.findProgramAddressSync(
       [Buffer.from("order"), owner.toBuffer(), new anchor.BN(seed).toArrayLike(Buffer, "le", 8)],
-      new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH")
+      this.ARBOR_PROGRAM_ID
     );
   }
 
   static async findGlobalConfigAddress(): Promise<[PublicKey, number]> {
     return await PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
-      new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH")
+      this.ARBOR_PROGRAM_ID
     );
   }
 
   static async findProgramAuthorityAddress(): Promise<[PublicKey, number]> {
     return await PublicKey.findProgramAddressSync(
       [Buffer.from("auth")],
-      new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH")
+      this.ARBOR_PROGRAM_ID
     );
   }
 
   static async findVaultAddress(order: PublicKey, protocol: "jupit" | "drift"): Promise<[PublicKey, number]> {
     return await PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), Buffer.from(protocol), order.toBuffer()],
-      new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH")
+      this.ARBOR_PROGRAM_ID
     );
   }
 
@@ -58,14 +60,6 @@ export class ArborClient {
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
     const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
-
-    // console.log("orderAddress", orderAddress.toBase58());
-    // console.log("globalConfigAddress", globalConfigAddress.toBase58());
-    // console.log("programAuthorityAddress", programAuthorityAddress.toBase58());
-    // console.log("jupiterVaultAddress", jupiterVaultAddress.toBase58());
-    // console.log("driftVaultAddress", driftVaultAddress.toBase58());
-
-
     const globalConfig = await this.program.account.globalConfig.fetch(globalConfigAddress);
     
     const ownerAta = await anchor.utils.token.associatedAddress({
@@ -211,6 +205,8 @@ export class ArborClient {
     console.log('- Config Bump:', configBump);
     console.log('- Auth Bump:', authBump);
 
+    
+
     try {
         // Initialize the accounts
         const tx = await this.program.methods
@@ -221,7 +217,7 @@ export class ArborClient {
                 configBump,
                 authBump
             )
-            .accountsStrict({
+            .accountsPartial({
                 signer: this.provider.wallet.publicKey,
                 globalConfig: globalConfigAddress,
                 programAuthority: programAuthorityAddress,
