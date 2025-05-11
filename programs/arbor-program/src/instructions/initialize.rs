@@ -10,7 +10,7 @@ pub struct InitializeConfig<'info> {
     #[account(
         init,
         payer = signer,
-        space = GlobalConfig::INIT_SPACE,
+        space = 8 + GlobalConfig::INIT_SPACE,
         seeds = [b"config"],
         bump
     )]
@@ -19,7 +19,7 @@ pub struct InitializeConfig<'info> {
     #[account(
         init,
         payer = signer,
-        space = ProgramAuthority::INIT_SPACE,
+        space = 8 + ProgramAuthority::INIT_SPACE,
         seeds = [b"auth"],
         bump
     )]
@@ -39,7 +39,10 @@ impl<'info> InitializeConfig<'info> {
             bump,
         });
 
-        self.program_authority.bump = program_authority_bump;
+        self.program_authority.set_inner(ProgramAuthority {
+            bump: program_authority_bump,
+        });
+        
         
         Ok(())
     }

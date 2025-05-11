@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[account]
-#[derive(InitSpace)]
+#[derive(Debug,InitSpace)]
 pub struct GlobalConfig {
     pub fee_bps: u64,
     pub admin: Pubkey,
