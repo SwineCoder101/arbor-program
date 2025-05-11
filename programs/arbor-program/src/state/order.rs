@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 #[account]
-#[derive(InitSpace)]
+#[derive(Debug,InitSpace)]
 pub struct Order {
     
     /* meta */
@@ -16,7 +16,7 @@ pub struct Order {
 
     pub drift_perp_amount: u64,
     pub jup_perp_amount: u64,
-    
+
     // 0 long, 1 short
     pub drift_side: u8,
     pub jup_side: u8,

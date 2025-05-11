@@ -14,6 +14,9 @@ describe("arbor-program", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const client = new ArborClient(provider);
 
+  let admin: Keypair;
+  let usdcReserve, trader: { wallet: Keypair, ata: PublicKey };
+  let usdcMint: {publicKey: PublicKey, keypair: Keypair};
 
   before(async () => {
     console.log("provider.wallet.publicKey", provider.wallet.publicKey.toBase58());
@@ -21,7 +24,11 @@ describe("arbor-program", () => {
     console.log("balance: ", balance);
 
     try { 
-        const { usdcMint, trader, usdcReserve, admin } = await setupWalletsAndMints(provider);
+        const wallets = await setupWalletsAndMints(provider);
+        trader = wallets.trader;
+        usdcReserve = wallets.usdcReserve;
+        admin = wallets.admin;
+        usdcMint = wallets.usdcMint;
         
         console.log("Using USDC Mint:", usdcMint.publicKey.toBase58());
         
@@ -66,6 +73,7 @@ describe("arbor-program", () => {
   // Helper to create a test order
   const createTestOrder = async (seed: number, ratioBps: number = 5000) => {
     return await client.createOrder({
+      signer: trader.wallet,
       seed,
       jupPerpAmount: 1000000,
       driftPerpAmount: 1000000,
@@ -88,6 +96,7 @@ describe("arbor-program", () => {
 
   it("creates order successfully with 60% drift and 40% jupiter perp", async () => {
     const tx = await client.createOrder({
+      signer: trader.wallet,
       seed: 2,
       jupPerpAmount: 800000,
       driftPerpAmount: 1200000,
@@ -162,6 +171,7 @@ describe("arbor-program", () => {
   it("creates order and throws invalid side error when side is invalid", async () => {
     try {
       await client.createOrder({
+        signer: trader.wallet,
         seed: 5,
         jupPerpAmount: 1000000,
         driftPerpAmount: 1000000,

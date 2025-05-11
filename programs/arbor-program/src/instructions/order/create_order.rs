@@ -15,7 +15,7 @@ pub struct CreateOrder<'info> {
         mut,
         associated_token::token_program = token_program,
         associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+        associated_token::authority = owner
     )]
     pub owner_ata: InterfaceAccount<'info,TokenAccount>,
 
@@ -25,7 +25,7 @@ pub struct CreateOrder<'info> {
     #[account(
         init,
         payer = owner,
-        space = Order::INIT_SPACE,
+        space = 8 + Order::INIT_SPACE,
         seeds = [b"order", owner.key().as_ref(), &seed.to_le_bytes()],
         bump
     )]
@@ -34,7 +34,7 @@ pub struct CreateOrder<'info> {
     #[account(mut, seeds = [b"config"], bump = global_config.bump)]
     pub global_config: Account<'info, GlobalConfig>,
 
-    #[account(seeds = [b"auth"], bump)]
+    #[account(mut, seeds = [b"auth"], bump)]
     pub program_authority: Account<'info, ProgramAuthority>,
 
 
@@ -100,8 +100,8 @@ impl<'info> CreateOrder<'info> {
             is_open: true,
             ratio_bps,
             drift_perp_idx,
-            drift_side,
-            jup_side,
+            drift_side: drift_side.clamp(0, 1),
+            jup_side: jup_side.clamp(0, 1),
             jup_perp_idx,
             last_arbitrage_rate,
             last_price_pv,

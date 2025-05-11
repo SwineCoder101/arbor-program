@@ -15,6 +15,9 @@ export class ArborClient {
 
   public static ARBOR_PROGRAM_ID = new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
 
+  private GLOBAL_CONFIG_ACCOUNT: PublicKey;
+  private PROGRAM_AUTHORITY_ACCOUNT: PublicKey;
+
   // Helper to derive PDA addresses
   static async findOrderAddress(owner: PublicKey, seed: number): Promise<[PublicKey, number]> {
     return await PublicKey.findProgramAddressSync(
@@ -44,8 +47,17 @@ export class ArborClient {
     );
   }
 
+  public async getGlobalConfigAddress(): Promise<PublicKey> {
+    return this.GLOBAL_CONFIG_ACCOUNT || (this.GLOBAL_CONFIG_ACCOUNT = await ArborClient.findGlobalConfigAddress()[0]);
+  }
+
+  public async getProgramAuthorityAddress(): Promise<PublicKey> {
+    return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = await ArborClient.findProgramAuthorityAddress()[0]);
+  }
+
   // Program Instructions
   async createOrder( {
+    signer,
     seed,
     jupPerpAmount,
     driftPerpAmount,
@@ -55,22 +67,32 @@ export class ArborClient {
     driftSide,
     jupSide
   }: CreateOrderInput) {
-    const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
-    const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
-    const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
+    console.log("creating order...");
+    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
+    const globalConfigAddress = await this.getGlobalConfigAddress();
+    const programAuthorityAddress = await this.getProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
     const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
-    const globalConfig = await this.program.account.globalConfig.fetch(globalConfigAddress);
+    const globalConfig = await this.getGlobalConfig();
     
     const ownerAta = await anchor.utils.token.associatedAddress({
       mint: globalConfig.usdcMint,
-      owner: this.provider.wallet.publicKey!
+      owner: signer.publicKey,
     });
+
+    // verify accounts exist
+    console.log("globalConfigAddress", globalConfigAddress.toBase58());
+    console.log("programAuthorityAddress", programAuthorityAddress.toBase58());
+    console.log("jupiterVaultAddress", jupiterVaultAddress.toBase58());
+    console.log("driftVaultAddress", driftVaultAddress.toBase58());
+    console.log("ownerAta", ownerAta.toBase58());
+    console.log("orderAddress", orderAddress.toBase58());
+
 
     return await this.program.methods
       .createOrder(
         new anchor.BN(seed),
-        0, // bumps_in
+        0,
         new anchor.BN(jupPerpAmount),
         new anchor.BN(driftPerpAmount),
         new anchor.BN(ratioBps),
@@ -80,7 +102,7 @@ export class ArborClient {
         jupSide
       )
       .accountsStrict({
-        owner: this.provider.wallet.publicKey,
+        owner: signer.publicKey,
         ownerAta,
         usdcMint: globalConfig.usdcMint,
         order: orderAddress,
@@ -91,7 +113,7 @@ export class ArborClient {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      })
+      }).signers([signer])
       .rpc();
   }
 
@@ -197,16 +219,7 @@ export class ArborClient {
   async initializeConfig(feeBps: number, admin: PublicKey, usdcMint: PublicKey) {
     const [globalConfigAddress, configBump] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress, authBump] = await ArborClient.findProgramAuthorityAddress();
-
-    console.log('Initializing config with:');
-    console.log('- Fee BPS:', feeBps);
-    console.log('- Admin:', admin.toBase58());
-    console.log('- USDC Mint:', usdcMint.toBase58());
-    console.log('- Config Bump:', configBump);
-    console.log('- Auth Bump:', authBump);
-
     
-
     try {
         // Initialize the accounts
         const tx = await this.program.methods
@@ -241,6 +254,9 @@ export class ArborClient {
             usdcMint: config.usdcMint.toBase58(),
             bump: config.bump
         });
+
+        this.GLOBAL_CONFIG_ACCOUNT = globalConfigAddress;
+        this.PROGRAM_AUTHORITY_ACCOUNT = programAuthorityAddress;
 
         return tx;
     } catch (error) {
