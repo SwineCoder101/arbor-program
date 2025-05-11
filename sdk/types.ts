@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 
 export type OrderAccount = {
     bump: BN;
@@ -18,6 +18,7 @@ export type OrderAccount = {
 }
 
 export type CreateOrderInput = {
+    signer: Keypair,
     seed: number,
     jupPerpAmount: number,
     driftPerpAmount: number,
