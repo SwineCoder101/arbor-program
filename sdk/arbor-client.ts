@@ -1,8 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { ArborProgram } from "../target/types/arbor_program";
-import { PublicKey } from "@solana/web3.js";
-import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, TopUpOrderInput } from "./types";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, TopUpOrderInput } from "./types";
 
 export class ArborClient {
   private program: Program<ArborProgram>;
@@ -17,6 +17,8 @@ export class ArborClient {
 
   private GLOBAL_CONFIG_ACCOUNT: PublicKey;
   private PROGRAM_AUTHORITY_ACCOUNT: PublicKey;
+
+  private globalConfig: GlobalConfigAccount;
 
   // Helper to derive PDA addresses
   static async findOrderAddress(owner: PublicKey, seed: number): Promise<[PublicKey, number]> {
@@ -53,6 +55,18 @@ export class ArborClient {
 
   public async getProgramAuthorityAddress(): Promise<PublicKey> {
     return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = await ArborClient.findProgramAuthorityAddress()[0]);
+  }
+
+  public async getTreasuryVaultAddress(): Promise<PublicKey> {
+    const programAuthorityAddress = await this.getProgramAuthorityAddress();
+    if (!this.globalConfig) {
+      throw new Error("Global config not initialized, please call initializeConfig first");
+    }
+    const treasuryVaultAddress = await anchor.utils.token.associatedAddress({
+      mint: this.globalConfig.usdcMint,
+      owner: programAuthorityAddress,
+    });
+    return treasuryVaultAddress;
   }
 
   // Program Instructions
@@ -257,6 +271,7 @@ export class ArborClient {
 
         this.GLOBAL_CONFIG_ACCOUNT = globalConfigAddress;
         this.PROGRAM_AUTHORITY_ACCOUNT = programAuthorityAddress;
+        this.globalConfig = config;
 
         return tx;
     } catch (error) {
@@ -278,8 +293,8 @@ export class ArborClient {
 }
 
   // Account Getters
-  async getOrder(seed: number) {
-    const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
+  async getOrder(seed: number, signer: Keypair) {
+    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
     return await this.program.account.order.fetch(orderAddress);
   }
 

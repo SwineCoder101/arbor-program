@@ -89,7 +89,7 @@ describe("arbor-program", () => {
     const tx = await createTestOrder(1);
     console.log("Your transaction signature", tx);
     
-    const order = await client.getOrder(1);
+    const order = await client.getOrder(1, trader.wallet);
     expect(order.ratioBps.toNumber()).to.equal(5000);
     expect(order.isOpen).to.be.true;
   });
@@ -108,7 +108,7 @@ describe("arbor-program", () => {
     });
     console.log("Your transaction signature", tx);
     
-    const order = await client.getOrder(2);
+    const order = await client.getOrder(2, trader.wallet);
     expect(order.ratioBps.toNumber()).to.equal(6000);
     expect(order.isOpen).to.be.true;
   });
@@ -117,9 +117,7 @@ describe("arbor-program", () => {
     const createTx = await createTestOrder(3);
     console.log("Create transaction signature", createTx);
 
-    const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
-    const globalConfig = await client.getGlobalConfig();
-    const treasuryVault = new PublicKey("treasury_vault_address"); // Replace with actual treasury vault address
+    const treasuryVault = await client.getGlobalConfigAddress();
 
     const closeTx = await client.closeOrder({
       seed: 3,
@@ -127,7 +125,7 @@ describe("arbor-program", () => {
     });
     console.log("Close transaction signature", closeTx);
 
-    const order = await client.getOrder(3);
+    const order = await client.getOrder(3, trader.wallet);
     expect(order.isOpen).to.be.false;
   });
 
@@ -145,7 +143,7 @@ describe("arbor-program", () => {
 
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const globalConfig = await client.getGlobalConfig();
-    const treasuryVault = new PublicKey("treasury_vault_address"); // Replace with actual treasury vault address
+    const treasuryVault = await client.getGlobalConfigAddress();
 
     try {
       await otherClient.closeOrder({
@@ -199,7 +197,7 @@ describe("arbor-program", () => {
     });
     console.log("Claim yield transaction signature", claimTx);
 
-    const order = await client.getOrder(6);
+    const order = await client.getOrder(6, trader.wallet);
     expect(order.lastArbitrageRate.toNumber()).to.be.greaterThan(0);
   });
 
@@ -213,8 +211,8 @@ describe("arbor-program", () => {
 
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const globalConfig = await client.getGlobalConfig();
-    const treasuryVault = new PublicKey("treasury_vault_address"); // Replace with actual treasury vault address
-
+    const treasuryVault = await client.getTreasuryVaultAddress();
+    
     const topUpTx = await client.topUpOrder({
       seed: 7,
       amount: 500000,
@@ -222,7 +220,7 @@ describe("arbor-program", () => {
     });
     console.log("Top up transaction signature", topUpTx);
 
-    const order = await client.getOrder(7);
+    const order = await client.getOrder(7, trader.wallet);
     expect(order.driftPerpAmount.toNumber()).to.be.greaterThan(1000000);
   });
 });
