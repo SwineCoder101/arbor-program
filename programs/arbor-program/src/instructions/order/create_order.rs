@@ -121,7 +121,7 @@ impl<'info> CreateOrder<'info> {
             from: self.owner_ata.to_account_info(),
             mint: self.usdc_mint.to_account_info(),
             to: protocol_vault,
-            authority: self.program_authority.to_account_info()
+            authority: self.owner.to_account_info(),
         };
 
         let cpi_ctx = CpiContext::new(transfer_cpi_program.clone(), transfer_accounts);

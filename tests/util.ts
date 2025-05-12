@@ -58,7 +58,7 @@ export async function setupTraderWallet(
     const balance = await provider.connection.getBalance(wallet.publicKey);
     console.log(`Trader Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
 
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000, mintAuthority);
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000, mintAuthority);
     return { wallet, ata };
 }
 

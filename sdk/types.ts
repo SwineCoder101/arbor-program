@@ -64,7 +64,7 @@ export type GlobalConfigAccount = {
     usdcMint: PublicKey;
     feeBps: BN;
     admin: PublicKey;
-    bump: BN;
+    bump: number;
 }
 
 export type GlobalConfigAccountData = {
