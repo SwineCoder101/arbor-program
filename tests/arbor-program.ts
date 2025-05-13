@@ -200,15 +200,18 @@ describe("arbor-program", () => {
     expect(order.driftPerpAmount.toNumber()).to.be.greaterThan(1000000000);
   });
 
-  it.skip("creates order, generates yield and then claims yield successfully", async () => {
-    const createTx = await createTestOrder(6);
-    console.log("Create transaction signature", createTx);
+  it("creates order, generates yield and then claims yield successfully", async () => {
+    const orderAddress = await createTestOrder(6);
 
-    // Simulate some time passing and yield generation
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log("Expected order PDA:", orderAddress.toBase58());
+    const derivedFromSeed = ArborClient.findOrderAddress(trader.wallet.publicKey, 6)[0];
+    console.log("Derived from seed directly:", derivedFromSeed.toBase58());
 
     const claimTx = await client.claimYield({
-      seed: 6
+      seed: 6,
+      driftYield: 1_000_000,
+      jupiterYield: 1_000_000,
+      signer: trader.wallet
     });
     console.log("Claim yield transaction signature", claimTx);
 

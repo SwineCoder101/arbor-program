@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, other::{GlobalConfig, ProgramAuthority}};
+use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::Order};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -114,6 +114,21 @@ impl<'info> CreateOrder<'info> {
 
     }
 
+    pub fn top_up_order(&mut self, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
+
+        require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedTopUpOrder);
+        
+        if drift_amount > 0 {
+            self.transfer_to_vault(drift_amount, self.drift_vault.to_account_info())?;
+            self.order.drift_perp_amount += drift_amount;
+        }
+        if jupiter_amount > 0 {
+            self.transfer_to_vault(jupiter_amount, self.jupiter_vault.to_account_info())?;
+            self.order.jup_perp_amount += jupiter_amount;
+        }
+        Ok(())
+    }
+
     fn transfer_to_vault(&mut self, amount : u64, protocol_vault: AccountInfo<'info> ) -> Result<()> {
         let transfer_cpi_program = self.token_program.to_account_info();
 
@@ -126,6 +141,35 @@ impl<'info> CreateOrder<'info> {
 
         let cpi_ctx = CpiContext::new(transfer_cpi_program.clone(), transfer_accounts);
         
+        transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
+    }
+
+    pub fn claim_yield(&mut self, drift_yield: u64, jupiter_yield: u64) -> Result<()> {
+
+        self.transfer_to_user(drift_yield, self.drift_vault.to_account_info())?;
+        self.transfer_to_user(jupiter_yield, self.jupiter_vault.to_account_info())?;
+
+        Ok(())
+    }
+
+    pub fn transfer_to_user(&mut self, amount: u64, protocol_vault: AccountInfo<'info>) -> Result<()> {
+        let cpi_program = self.token_program.to_account_info();
+
+        let transfer_accounts = TransferChecked {
+            from: protocol_vault,
+            mint: self.usdc_mint.to_account_info(),
+            to: self.owner_ata.to_account_info(),
+            authority: self.program_authority.to_account_info()
+        };
+
+        let signer_seeds : [&[&[u8]] ;1]= [&[
+            b"auth",
+            self.program_authority.to_account_info().key.as_ref(),
+            &[self.program_authority.bump]]
+        ];
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, &signer_seeds);
+
         transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
     }
 }
