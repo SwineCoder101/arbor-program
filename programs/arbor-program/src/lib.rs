@@ -23,8 +23,8 @@ pub mod arbor_program {
         ctx.accounts.claim_yield()
     }
 
-    pub fn close_order(ctx: Context<CloseOrder>) -> Result<()> {
-        ctx.accounts.close_order()
+    pub fn close_order(ctx: Context<CloseOrder>, seed: u64) -> Result<()> {
+        ctx.accounts.close_order(seed)
     }
 
     pub fn withdraw_from_treasury(ctx: Context<WithdrawFromTreasury>, amount: u64) -> Result<()> {

@@ -31,7 +31,7 @@ export type CreateOrderInput = {
 
 export type CloseOrderInput = {
     seed: number,
-    treasuryVault: PublicKey,
+    signer: Keypair,
 }
 
 export type ClaimYieldInput = {
@@ -80,4 +80,12 @@ export type ProgramAuthorityAccount = {
 
 export type ProgramAuthorityAccountData = {
     bump: number,
+}
+
+export type OpenOrder = {
+    order: PublicKey,
+    driftVault: PublicKey,
+    jupiterVault: PublicKey,
+    driftBump: number,
+    jupiterBump: number,
 }

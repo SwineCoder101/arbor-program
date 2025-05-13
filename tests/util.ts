@@ -2,6 +2,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { ArborClient } from "../sdk/arbor-client";
+import { OpenOrder } from "../sdk/types";
 
 
 
@@ -58,8 +60,39 @@ export async function setupTraderWallet(
     const balance = await provider.connection.getBalance(wallet.publicKey);
     console.log(`Trader Wallet: ${wallet.publicKey.toBase58()} with balance: ${balance}`)
 
-    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000, mintAuthority);
+    const ata = await fundAccountWithUSDC(provider, wallet, usdcMint, 100_000_000_000, mintAuthority);
     return { wallet, ata };
+}
+
+
+export async function logBalancesUserTreasury(provider: anchor.AnchorProvider, client: ArborClient, trader: {wallet: Keypair, ata: PublicKey}, logMsg: string = "", treasuryVault: PublicKey, shouldLog: boolean = true) {
+    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, trader.wallet.publicKey);
+    const usdcBalanceTreasury = await client.getVaultBalance(provider.connection, treasuryVault);
+
+    if (shouldLog) {
+        console.log(logMsg);
+        console.log("usdcBalanceTrader: ", usdcBalanceTrader);
+        console.log("usdcBalanceTreasury: ", usdcBalanceTreasury);
+    }
+
+    return {usdcBalanceTrader, usdcBalanceTreasury};
+}
+
+export async function logBalancesAfterOrderOpen(provider: anchor.AnchorProvider, client: ArborClient, openOrder: OpenOrder, trader: {wallet: Keypair, ata: PublicKey}, treasuryVault: PublicKey, logMsg: string = "", shouldLog: boolean = true) {
+    const usdcBalanceDrift = await client.getVaultBalance(provider.connection, openOrder.driftVault);
+    const usdcBalanceJupiter = await client.getVaultBalance(provider.connection, openOrder.jupiterVault);
+    const usdcBalanceTreasury = await client.getVaultBalance(provider.connection, treasuryVault);
+    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, trader.wallet.publicKey);
+
+    if (shouldLog) {
+        console.log(logMsg);
+        console.log("usdcBalanceDrift: ", usdcBalanceDrift);
+        console.log("usdcBalanceJupiter: ", usdcBalanceJupiter);
+        console.log("usdcBalanceTreasury: ", usdcBalanceTreasury);
+        console.log("usdcBalanceTrader: ", usdcBalanceTrader);
+    }
+
+    return {usdcBalanceDrift, usdcBalanceJupiter, usdcBalanceTreasury, usdcBalanceTrader};
 }
 
 export async function setupUSDCReserveWallet(
@@ -172,6 +205,20 @@ export async function createATA(
         console.error(`Error creating ATA: ${error}`);
         throw error;
     }
+}
+
+
+export async function getUSDCBalanceOf(provider: anchor.AnchorProvider, pubkey: anchor.web3.PublicKey, usdcMint: anchor.web3.PublicKey) {
+    const ata = await spl.getAssociatedTokenAddress(
+        usdcMint,
+        pubkey,
+        true,
+        spl.TOKEN_PROGRAM_ID,
+        spl.ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+    console.log("finding balance of ata: ", ata.toBase58(), " for account: ", pubkey.toBase58(), " on mint: ", usdcMint.toBase58());
+    const balance = await provider.connection.getTokenAccountBalance(ata);
+    return new Number(balance.value.amount);
 }
 
 

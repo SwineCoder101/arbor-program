@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
-
-use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::Order};
+use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::{order, Order}};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -17,7 +16,7 @@ pub struct CloseOrder<'info> {
         mut,
         associated_token::token_program = token_program,
         associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+        associated_token::authority = owner
     )]
     pub owner_ata: InterfaceAccount<'info,TokenAccount>,
 
@@ -73,21 +72,27 @@ pub struct CloseOrder<'info> {
 
 impl<'info> CloseOrder<'info> {
 
-    pub fn close_order(&mut self) -> Result<()> {
+    pub fn close_order(&mut self, seed: u64) -> Result<()> {
 
         //check owner of the order
         require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedCloseOrder);
 
         // charge a fee and transfer to treasury
-        self.charge_fee_to_treasury(self.drift_vault.to_account_info())?;
-        self.charge_fee_to_treasury(self.jupiter_vault.to_account_info())?;
+
+        let fee_amount_drift = self.global_config.fee_bps * self.order.drift_perp_amount / 10000;
+        let fee_amount_jupiter = self.global_config.fee_bps * self.order.drift_perp_amount / 10000;
+
+        let drift_remaining = self.order.drift_perp_amount - fee_amount_drift;
+        let jupiter_remaining = self.order.jup_perp_amount - fee_amount_jupiter;
+
+        self.charge_fee_to_treasury(self.drift_vault.to_account_info(), fee_amount_drift)?;
+        self.charge_fee_to_treasury(self.jupiter_vault.to_account_info(), fee_amount_jupiter)?;
 
         // transfer remaining to user
-        self.transfer_to_user(self.order.drift_perp_amount, self.drift_vault.to_account_info())?;
-        self.transfer_to_user(self.order.jup_perp_amount, self.jupiter_vault.to_account_info())?;
+        self.transfer_to_user(self.drift_vault.clone(), drift_remaining)?;
+        self.transfer_to_user(self.jupiter_vault.clone(), jupiter_remaining)?;
 
         // close accounts
-        self.close_order_account()?;
         self.close_vault_account(self.jupiter_vault.to_account_info())?;
         self.close_vault_account(self.drift_vault.to_account_info())?;
 
@@ -95,19 +100,16 @@ impl<'info> CloseOrder<'info> {
     }
 
     fn close_vault_account(&mut self, protocol_vault: AccountInfo<'info>) -> Result<()> {
-        let cpi_program: AccountInfo<'_> = self.system_program.to_account_info();
+        let cpi_program: AccountInfo<'_> = self.token_program.to_account_info();
 
         let close_accounts = CloseAccount {
-            account: self.order.to_account_info(),
-            destination: protocol_vault,
+            account: protocol_vault,
+            destination: self.order.to_account_info(),
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
-        ];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
 
@@ -126,20 +128,17 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
-        ];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
 
         close_account(cpi_ctx)
     }
 
-    fn charge_fee_to_treasury(&mut self, protocol_vault: AccountInfo<'info> ) -> Result<()> {
 
-        let fee_amount_ = self.global_config.fee_bps * self.order.drift_perp_amount / 10000;
+
+    fn charge_fee_to_treasury(&mut self, protocol_vault: AccountInfo<'info>, fee_amount: u64) -> Result<()> {
 
         let transfer_cpi_program = self.token_program.to_account_info();
 
@@ -150,33 +149,26 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
-        ];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+
 
         let cpi_ctx = CpiContext::new_with_signer(transfer_cpi_program.clone(), 
         transfer_accounts, &signer_seeds);
         
-        transfer_checked(cpi_ctx, fee_amount_, self.usdc_mint.decimals)
+        transfer_checked(cpi_ctx, fee_amount, self.usdc_mint.decimals)
     }
 
-    fn transfer_to_user(&mut self, amount : u64, protocol_vault: AccountInfo<'info> ) -> Result<()> {
+    fn transfer_to_user(&mut self, protocol_vault: InterfaceAccount<'info, TokenAccount>, amount: u64 ) -> Result<()> {
         let transfer_cpi_program = self.token_program.to_account_info();
 
         let transfer_accounts = TransferChecked {
-            from: protocol_vault,
+            from: protocol_vault.to_account_info(),
             mint: self.usdc_mint.to_account_info(),
             to: self.owner_ata.to_account_info(),
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
-        ];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
 
         let cpi_ctx = CpiContext::new_with_signer(transfer_cpi_program.clone(), transfer_accounts, &signer_seeds);
         
