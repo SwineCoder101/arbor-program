@@ -26,10 +26,11 @@ export class ArborClient {
   private globalConfig: GlobalConfigAccount;
 
   // Helper to derive PDA addresses
-  static async findOrderAddress(owner: PublicKey, seed: number): Promise<[PublicKey, number]> {
-    return await PublicKey.findProgramAddressSync(
-      [Buffer.from("order"), owner.toBuffer(), new anchor.BN(seed).toArrayLike(Buffer, "le", 8)],
-      this.ARBOR_PROGRAM_ID
+  static findOrderAddress(owner: PublicKey, seed: number): [PublicKey, number] {
+    const seedBuffer = new anchor.BN(seed).toArrayLike(Buffer, "le", 8);
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("order"), owner.toBuffer(), seedBuffer],
+      ArborClient.ARBOR_PROGRAM_ID
     );
   }
 
@@ -296,27 +297,29 @@ export class ArborClient {
       .rpc();
   }
 
-  async topUpOrder({seed, amount, treasuryVault}: TopUpOrderInput) {
-    const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
+  async topUpOrder({seed, driftAmount, jupiterAmount, treasuryVault, signer, order}: TopUpOrderInput) {
+    
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
-    const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
-    const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
+    const [jupiterVaultAddress] = await ArborClient.findVaultAddress(order, "jupit");
+    const [driftVaultAddress] = await ArborClient.findVaultAddress(order, "drift");
 
     const globalConfig = await this.program.account.globalConfig.fetch(globalConfigAddress);
     
     const ownerAta = await anchor.utils.token.associatedAddress({
       mint: globalConfig.usdcMint,
-      owner: this.provider.wallet.publicKey!
+      owner: signer.publicKey
     });
 
+    console.log("about to top up order", order.toBase58());
+
     return await this.program.methods
-      .topUpOrder(new anchor.BN(amount))
-      .accountsStrict({
-        owner: this.provider.wallet.publicKey,
+      .topUpOrder(new anchor.BN(driftAmount), new anchor.BN(jupiterAmount))
+      .accountsPartial({
+        owner: signer.publicKey,
         ownerAta,
         usdcMint: globalConfig.usdcMint,
-        order: orderAddress,
+        order,
         globalConfig: globalConfigAddress,
         programAuthority: programAuthorityAddress,
         jupiterVault: jupiterVaultAddress,
@@ -325,7 +328,7 @@ export class ArborClient {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      })
+      }).signers([signer])
       .rpc();
   }
 

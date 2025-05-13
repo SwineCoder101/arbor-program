@@ -40,8 +40,11 @@ export type ClaimYieldInput = {
 
 export type TopUpOrderInput = {
     seed: number,
-    amount: number,
+    driftAmount: number,
+    jupiterAmount: number,
     treasuryVault: PublicKey,
+    signer: Keypair,
+    order?: PublicKey,
 }
 
 export type OrderAccountData = {

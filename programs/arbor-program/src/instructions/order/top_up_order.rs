@@ -15,7 +15,7 @@ pub struct TopUpOrder<'info> {
         mut,
         associated_token::token_program = token_program,
         associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+        associated_token::authority = owner
     )]
     pub owner_ata: InterfaceAccount<'info,TokenAccount>,
 
@@ -24,7 +24,6 @@ pub struct TopUpOrder<'info> {
 
     #[account(
         mut,
-        close = owner,
         seeds = [b"order", owner.key().as_ref(), &seed.to_le_bytes()],
         bump
     )]
@@ -67,18 +66,18 @@ pub struct TopUpOrder<'info> {
 
 impl<'info> TopUpOrder<'info> {
 
-    pub fn top_up_order(&mut self, amount: u64, is_long: bool) -> Result<()> {
+    pub fn top_up_order(&mut self, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
 
         require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedTopUpOrder);
         
-        if is_long && self.order.drift_side == 0 {
-            self.transfer_to_vault(amount, self.drift_vault.to_account_info())?;
-        } else if !is_long && self.order.drift_side == 1 {
-            self.transfer_to_vault(amount, self.jupiter_vault.to_account_info())?;
-        } else {
-            return Err(ArborError::InvalidSide.into());
+        if drift_amount > 0 {
+            self.transfer_to_vault(drift_amount, self.drift_vault.to_account_info())?;
+            self.order.drift_perp_amount += drift_amount;
         }
-        
+        if jupiter_amount > 0 {
+            self.transfer_to_vault(jupiter_amount, self.jupiter_vault.to_account_info())?;
+            self.order.jup_perp_amount += jupiter_amount;
+        }
         Ok(())
     }
 
