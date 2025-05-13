@@ -65,10 +65,7 @@ pub struct ClaimYield<'info> {
 
 impl<'info> ClaimYield<'info> {
 
-    pub fn claim_yield(&mut self) -> Result<()> {
-        let drift_yield = self.drift_vault.amount;
-        let jupiter_yield = self.jupiter_vault.amount;
-
+    pub fn claim_yield(&mut self, drift_yield: u64, jupiter_yield: u64) -> Result<()> {
         self.transfer_to_user(drift_yield, self.drift_vault.to_account_info())?;
         self.transfer_to_user(jupiter_yield, self.jupiter_vault.to_account_info())?;
 

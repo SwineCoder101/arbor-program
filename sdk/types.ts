@@ -36,6 +36,9 @@ export type CloseOrderInput = {
 
 export type ClaimYieldInput = {
     seed: number,
+    driftYield: number,
+    jupiterYield: number,
+    signer: Keypair,
 }
 
 export type TopUpOrderInput = {

@@ -19,8 +19,8 @@ pub mod arbor_program {
         ctx.accounts.top_up_order(drift_amount, jupiter_amount)
     }
 
-    pub fn claim_yield(ctx: Context<ClaimYield>) -> Result<()> {
-        ctx.accounts.claim_yield()
+    pub fn claim_yield(ctx: Context<ClaimYield>, drift_yield: u64, jupiter_yield: u64) -> Result<()> {
+        ctx.accounts.claim_yield(drift_yield, jupiter_yield)
     }
 
     pub fn close_order(ctx: Context<CloseOrder>, seed: u64) -> Result<()> {

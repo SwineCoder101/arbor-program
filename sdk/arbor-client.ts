@@ -265,8 +265,8 @@ export class ArborClient {
       .rpc();
   }
 
-  async claimYield({seed} : ClaimYieldInput) {
-    const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
+  async claimYield({seed, driftYield, jupiterYield, signer} : ClaimYieldInput) {
+    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
@@ -276,13 +276,13 @@ export class ArborClient {
     
     const ownerAta = await anchor.utils.token.associatedAddress({
       mint: globalConfig.usdcMint,
-      owner: this.provider.wallet.publicKey!
+      owner: signer.publicKey
     });
 
     return await this.program.methods
-      .claimYield()
+      .claimYield(new anchor.BN(driftYield), new anchor.BN(jupiterYield))
       .accountsStrict({
-        owner: this.provider.wallet.publicKey,
+        owner: signer.publicKey,
         ownerAta,
         usdcMint: globalConfig.usdcMint,
         order: orderAddress,
@@ -293,7 +293,7 @@ export class ArborClient {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      })
+      }).signers([signer])
       .rpc();
   }
 
@@ -324,7 +324,6 @@ export class ArborClient {
         programAuthority: programAuthorityAddress,
         jupiterVault: jupiterVaultAddress,
         driftVault: driftVaultAddress,
-        treasuryVault,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
