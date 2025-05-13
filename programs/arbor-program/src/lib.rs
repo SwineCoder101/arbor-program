@@ -15,8 +15,8 @@ declare_id!("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
 pub mod arbor_program {
     use super::*;
 
-    pub fn top_up_order(ctx: Context<TopUpOrder>, amount: u64) -> Result<()> {
-        ctx.accounts.top_up_order(amount, false)
+    pub fn top_up_order(ctx: Context<TopUpOrder>, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
+        ctx.accounts.top_up_order(drift_amount, jupiter_amount)
     }
 
     pub fn claim_yield(ctx: Context<ClaimYield>) -> Result<()> {
