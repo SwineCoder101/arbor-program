@@ -1,8 +1,11 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { ArborProgram } from "../target/types/arbor_program";
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, TopUpOrderInput } from "./types";
+import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, OpenOrder, TopUpOrderInput } from "./types";
+import * as spl from "@solana/spl-token";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 export class ArborClient {
   private program: Program<ArborProgram>;
@@ -13,11 +16,13 @@ export class ArborClient {
     this.program = anchor.workspace.ArborProgram as Program<ArborProgram>;
   }
 
+  private orderCache: Map<PublicKey, OpenOrder> = new Map();
+
   public static ARBOR_PROGRAM_ID = new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
 
   private GLOBAL_CONFIG_ACCOUNT: PublicKey;
   private PROGRAM_AUTHORITY_ACCOUNT: PublicKey;
-
+  private TREASURY_VAULT_ADDRESS: PublicKey;
   private globalConfig: GlobalConfigAccount;
 
   // Helper to derive PDA addresses
@@ -42,11 +47,20 @@ export class ArborClient {
     );
   }
 
-  static async findVaultAddress(order: PublicKey, protocol: "jupit" | "drift"): Promise<[PublicKey, number]> {
-    return await PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), Buffer.from(protocol), order.toBuffer()],
-      this.ARBOR_PROGRAM_ID
-    );
+    static findVaultAddress(order: PublicKey, protocol: "jupit" | "drift"): [PublicKey, number] {
+      return PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), Buffer.from(protocol), order.toBuffer()],
+        this.ARBOR_PROGRAM_ID
+      );
+    }
+
+  async getVaultBalance(connection: Connection, vaultAddress: PublicKey) {
+      const balanceInfo = await connection.getTokenAccountBalance(vaultAddress);
+      return {
+        uiAmount: balanceInfo.value.uiAmount,
+        amount: balanceInfo.value.amount,           // raw amount as string
+        decimals: balanceInfo.value.decimals
+      };
   }
 
   public async getGlobalConfigAddress(): Promise<PublicKey> {
@@ -57,16 +71,98 @@ export class ArborClient {
     return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = await ArborClient.findProgramAuthorityAddress()[0]);
   }
 
+  private async addOrderToCache(order: PublicKey, driftVault: PublicKey, jupiterVault: PublicKey, driftBump: number, jupiterBump: number) {
+
+    this.orderCache.set(order, {
+      order,
+      driftVault,
+      jupiterVault,
+      driftBump,
+      jupiterBump
+    });
+  }
+
+  public async isTreasuryVaultInitialized(): Promise<boolean> {
+
+    const treasuryAccount = await this.provider.connection.getAccountInfo(this.TREASURY_VAULT_ADDRESS);
+
+    return treasuryAccount ? true : false;
+  }
+
   public async getTreasuryVaultAddress(): Promise<PublicKey> {
+
     const programAuthorityAddress = await this.getProgramAuthorityAddress();
     if (!this.globalConfig) {
       throw new Error("Global config not initialized, please call initializeConfig first");
     }
-    const treasuryVaultAddress = await anchor.utils.token.associatedAddress({
-      mint: this.globalConfig.usdcMint,
-      owner: programAuthorityAddress,
-    });
-    return treasuryVaultAddress;
+    if (! await this.isTreasuryVaultInitialized()) {
+      this.TREASURY_VAULT_ADDRESS = await this.createTreasuryVault(this.provider, this.globalConfig.usdcMint, programAuthorityAddress);
+    }
+    return this.TREASURY_VAULT_ADDRESS;
+  }
+
+  public async getUSDCBalanceOf(connection: Connection, pubkey: PublicKey) {
+    const ata = await spl.getAssociatedTokenAddress(this.globalConfig.usdcMint, pubkey);
+    const balance = await connection.getTokenAccountBalance(ata);
+    return {
+      uiAmount: balance.value.uiAmount,
+      amount: balance.value.amount,
+      decimals: balance.value.decimals
+    };
+  }
+
+  public async createTreasuryVault(
+    provider: anchor.AnchorProvider,
+    usdcMint: PublicKey,
+    programAuthority: PublicKey
+  ): Promise<PublicKey> {
+    const payer = provider.wallet;
+  
+    const treasuryVault = await getAssociatedTokenAddressSync(
+      usdcMint,
+      programAuthority,
+      true,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+  
+    const existingAccount = await provider.connection.getAccountInfo(treasuryVault);
+    if (existingAccount) {
+      console.log("Treasury vault already exists:", treasuryVault.toBase58());
+      return treasuryVault;
+    }
+  
+    const ix = createAssociatedTokenAccountInstruction(
+      payer.publicKey,
+      treasuryVault,
+      programAuthority,
+      usdcMint,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+  
+    const tx = new Transaction().add(ix);
+  
+    const signature = await provider.sendAndConfirm(tx, []);
+    console.log("Treasury vault created with signature:", signature);
+  
+    return treasuryVault;
+  }
+
+  async ensureAta(mint: PublicKey, owner: PublicKey): Promise<PublicKey> {
+    const ata = await spl.getAssociatedTokenAddress(mint, owner);
+    const info = await this.provider.connection.getAccountInfo(ata);
+    if (!info) {
+      const ix = createAssociatedTokenAccountInstruction(
+        this.provider.wallet.publicKey,
+        ata,
+        owner,
+        mint
+      );
+      const tx = new Transaction().add(ix);
+      await this.provider.sendAndConfirm(tx, []);
+    }
+    return ata;
   }
 
   // Program Instructions
@@ -85,8 +181,8 @@ export class ArborClient {
     const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
     const globalConfigAddress = await this.getGlobalConfigAddress();
     const programAuthorityAddress = await this.getProgramAuthorityAddress();
-    const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
-    const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
+    const [jupiterVaultAddress, jupiterBump] = await ArborClient.findVaultAddress(orderAddress, "jupit");
+    const [driftVaultAddress, driftBump] = await ArborClient.findVaultAddress(orderAddress, "drift");
     const globalConfig = await this.getGlobalConfig();
     
     const ownerAta = await anchor.utils.token.associatedAddress({
@@ -103,7 +199,7 @@ export class ArborClient {
     console.log("orderAddress", orderAddress.toBase58());
 
 
-    return await this.program.methods
+    const tx =await this.program.methods
       .createOrder(
         new anchor.BN(seed),
         0,
@@ -129,26 +225,30 @@ export class ArborClient {
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
       }).signers([signer])
       .rpc();
+
+      await this.addOrderToCache(orderAddress, driftVaultAddress, jupiterVaultAddress, driftBump, jupiterBump);
+
+      return orderAddress;
   }
 
-  async closeOrder({seed, treasuryVault}: CloseOrderInput) {
-    const [orderAddress] = await ArborClient.findOrderAddress(this.provider.wallet.publicKey!, seed);
+  async closeOrder({seed, signer}: CloseOrderInput) {
+    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jupit");
     const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
-
+    const treasuryVault = await this.getTreasuryVaultAddress();
     const globalConfig = await this.program.account.globalConfig.fetch(globalConfigAddress);
     
     const ownerAta = await anchor.utils.token.associatedAddress({
       mint: globalConfig.usdcMint,
-      owner: this.provider.wallet.publicKey!
+      owner: signer.publicKey
     });
 
     return await this.program.methods
-      .closeOrder()
+      .closeOrder(new anchor.BN(seed))
       .accountsStrict({
-        owner: this.provider.wallet.publicKey,
+        owner: signer.publicKey,
         ownerAta,
         usdcMint: globalConfig.usdcMint,
         order: orderAddress,
@@ -160,7 +260,7 @@ export class ArborClient {
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-      })
+      }).signers([signer])
       .rpc();
   }
 
@@ -273,6 +373,8 @@ export class ArborClient {
         this.PROGRAM_AUTHORITY_ACCOUNT = programAuthorityAddress;
         this.globalConfig = config;
 
+        this.TREASURY_VAULT_ADDRESS = await this.createTreasuryVault(this.provider, this.globalConfig.usdcMint, this.PROGRAM_AUTHORITY_ACCOUNT);
+
         return tx;
     } catch (error) {
         console.error('Error initializing config:', error);
@@ -298,9 +400,33 @@ export class ArborClient {
     return await this.program.account.order.fetch(orderAddress);
   }
 
-  async getAllOrders() {
+
+  async getOpenOrderByAddress(orderAddress: PublicKey) {
+    return this.orderCache.get(orderAddress);
+  }
+
+  async getOpenOrder(seed: number, signer: Keypair) {
+    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
+    return this.orderCache.get(orderAddress);
+  }
+
+  async getAllOpenOrders(){
     const orders = await this.program.account.order.all();
-    return orders.map((order) => order.account);
+    return orders.map((order) => this.orderCache.get(order.account.owner));
+  }
+
+  async getOpenOrderByUser(user: PublicKey) {
+    const orders = await this.getAllOrderProgramAccounts();
+    const orderAccountsForUser = orders.filter((order) => order.account.owner.equals(user));
+    return orderAccountsForUser.map((order) => this.orderCache.get(order.publicKey));
+  }
+
+  async getAllOrders() {
+    return (await this.getAllOrderProgramAccounts()).map((order) => order.account);
+  }
+
+  async getAllOrderProgramAccounts() {
+    return await this.program.account.order.all();
   }
 
   async getGlobalConfig() {
