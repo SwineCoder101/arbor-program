@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{GlobalConfig, ProgramAuthority};
+use crate::{GlobalConfig};
 
 #[derive(Accounts)]
 pub struct InitializeConfig<'info> {
@@ -16,34 +16,28 @@ pub struct InitializeConfig<'info> {
     )]
     pub global_config: Account<'info, GlobalConfig>,
     
+    ///CHECK: This is safe. It's just used to sign things
     #[account(
-        init,
-        payer = signer,
-        space = 8 + ProgramAuthority::INIT_SPACE,
-        seeds = [b"auth"],
-        bump
+        seeds=[b"auth"],
+            bump
     )]
-    pub program_authority: Account<'info, ProgramAuthority>,
+    pub program_authority: UncheckedAccount<'info>,
  
     pub system_program: Program<'info, System>,
 }
 
 
 impl<'info> InitializeConfig<'info> {
-    pub fn initialize_config(&mut self, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey, bump: u8, program_authority_bump: u8) -> Result<()> {
+    pub fn initialize_config(&mut self, bump: u8, program_authority_bump: u8, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey) -> Result<()> {
         
         self.global_config.set_inner(GlobalConfig {
             fee_bps,
             admin,
             usdc_mint,
             bump,
+            auth_bump: program_authority_bump,
         });
 
-        self.program_authority.set_inner(ProgramAuthority {
-            bump: program_authority_bump,
-        });
-        
-        
         Ok(())
     }
 }

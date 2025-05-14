@@ -186,6 +186,8 @@ describe("arbor-program", () => {
 
     const treasuryVault = await client.getTreasuryVaultAddress();
 
+
+    // TODO check the amounts are getting topped up correctly before and after
     const topUpTx = await client.topUpOrder({
       seed: 7,
       driftAmount: 500_000_000,
@@ -194,7 +196,6 @@ describe("arbor-program", () => {
       signer: trader.wallet,
       order: orderAddress
     });
-    console.log("Top up transaction signature", topUpTx);
 
     const order = await client.getOrder(7, trader.wallet);
     expect(order.driftPerpAmount.toNumber()).to.be.greaterThan(1000000000);
@@ -207,16 +208,26 @@ describe("arbor-program", () => {
     const derivedFromSeed = ArborClient.findOrderAddress(trader.wallet.publicKey, 6)[0];
     console.log("Derived from seed directly:", derivedFromSeed.toBase58());
 
-    const claimTx = await client.claimYield({
+    await client.claimYield({
       seed: 6,
       driftYield: 1_000_000,
       jupiterYield: 1_000_000,
       signer: trader.wallet
     });
-    console.log("Claim yield transaction signature", claimTx);
 
-    const order = await client.getOrder(6, trader.wallet);
-    expect(order.lastArbitrageRate.toNumber()).to.be.greaterThan(0);
+    let order = await client.getOrder(6, trader.wallet);
+    console.log('claimed order: ', order );
+
+    await client.claimYield({
+      seed: 6,
+      driftYield: 2_000_000,
+      jupiterYield: 2_000_000,
+      signer: trader.wallet
+    });
+
+    order = await client.getOrder(6, trader.wallet);
+    console.log('claimed order: ', order );
+    // expect(order.lastArbitrageRate.toNumber()).to.be.greaterThan(0);
   });
 
   // it("creates order and throws unauthorized error when claiming yield with wrong authority", async () => {

@@ -1,10 +1,9 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
-use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::{order, Order}};
+use crate::{error::ArborError, other::{GlobalConfig}, state::{order, Order}};
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct CloseOrder<'info> {
 
 
@@ -14,9 +13,9 @@ pub struct CloseOrder<'info> {
 
     #[account(
         mut,
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = owner
+        token::token_program = token_program,
+        token::mint = global_config.usdc_mint,
+        token::authority = owner
     )]
     pub owner_ata: InterfaceAccount<'info,TokenAccount>,
 
@@ -26,22 +25,23 @@ pub struct CloseOrder<'info> {
     #[account(
         mut,
         close = owner,
-        seeds = [b"order", owner.key().as_ref(), &seed.to_le_bytes()],
-        bump
+        seeds = [b"order", order.owner.key().as_ref(), &order.seed.to_le_bytes()],
+        bump = order.bump
     )]
     pub order: Account<'info, Order>,
 
-    #[account(mut, seeds = [b"config"], bump = global_config.bump)]
+    #[account(seeds = [b"config"], bump = global_config.bump, has_one = usdc_mint)]
     pub global_config: Account<'info, GlobalConfig>,
 
-    #[account(seeds = [b"auth"], bump)]
-    pub program_authority: Account<'info, ProgramAuthority>,
 
+    ///CHECK: This is safe. It's just used to sign things
+    #[account(seeds = [b"auth"], bump = global_config.auth_bump)]
+    pub program_authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
         seeds = [b"vault", b"jupit", order.key().as_ref()],
-        bump,
+        bump = order.jup_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
@@ -52,7 +52,7 @@ pub struct CloseOrder<'info> {
     #[account(
         mut,
         seeds = [b"vault", b"drift", order.key().as_ref()],
-        bump,
+        bump = order.drift_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
@@ -72,7 +72,7 @@ pub struct CloseOrder<'info> {
 
 impl<'info> CloseOrder<'info> {
 
-    pub fn close_order(&mut self, seed: u64) -> Result<()> {
+    pub fn close_order(&mut self) -> Result<()> {
 
         //check owner of the order
         require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedCloseOrder);
@@ -108,7 +108,7 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
 
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
@@ -128,7 +128,7 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
 
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
@@ -149,7 +149,7 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
 
 
         let cpi_ctx = CpiContext::new_with_signer(transfer_cpi_program.clone(), 
@@ -168,7 +168,7 @@ impl<'info> CloseOrder<'info> {
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.program_authority.bump]]];
+        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
 
         let cpi_ctx = CpiContext::new_with_signer(transfer_cpi_program.clone(), transfer_accounts, &signer_seeds);
         

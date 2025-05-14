@@ -21,6 +21,9 @@ pub struct Order {
     pub drift_side: u8,
     pub jup_side: u8,
 
+    pub drift_vault_bump: u8,
+    pub jup_vault_bump: u8,
+
 
     /* solend loan refs */
     // pub reserve_address: Pubkey,

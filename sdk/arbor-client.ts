@@ -65,11 +65,11 @@ export class ArborClient {
   }
 
   public async getGlobalConfigAddress(): Promise<PublicKey> {
-    return this.GLOBAL_CONFIG_ACCOUNT || (this.GLOBAL_CONFIG_ACCOUNT = await ArborClient.findGlobalConfigAddress()[0]);
+    return this.GLOBAL_CONFIG_ACCOUNT || (this.GLOBAL_CONFIG_ACCOUNT = (await ArborClient.findGlobalConfigAddress())[0]);
   }
 
   public async getProgramAuthorityAddress(): Promise<PublicKey> {
-    return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = await ArborClient.findProgramAuthorityAddress()[0]);
+    return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = (await ArborClient.findProgramAuthorityAddress())[0]);
   }
 
   private async addOrderToCache(order: PublicKey, driftVault: PublicKey, jupiterVault: PublicKey, driftBump: number, jupiterBump: number) {
@@ -203,7 +203,6 @@ export class ArborClient {
     const tx =await this.program.methods
       .createOrder(
         new anchor.BN(seed),
-        0,
         new anchor.BN(jupPerpAmount),
         new anchor.BN(driftPerpAmount),
         new anchor.BN(ratioBps),
@@ -247,7 +246,7 @@ export class ArborClient {
     });
 
     return await this.program.methods
-      .closeOrder(new anchor.BN(seed))
+      .closeOrder()
       .accountsStrict({
         owner: signer.publicKey,
         ownerAta,
@@ -299,6 +298,10 @@ export class ArborClient {
 
   async topUpOrder({seed, driftAmount, jupiterAmount, treasuryVault, signer, order}: TopUpOrderInput) {
     
+    if (!order) {
+      throw Error('please add an Order pubkey');
+    }
+
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress] = await ArborClient.findProgramAuthorityAddress();
     const [jupiterVaultAddress] = await ArborClient.findVaultAddress(order, "jupit");
@@ -311,7 +314,7 @@ export class ArborClient {
       owner: signer.publicKey
     });
 
-    console.log("about to top up order", order.toBase58());
+    // console.log("about to top up order", order.toBase58());
 
     return await this.program.methods
       .topUpOrder(new anchor.BN(driftAmount), new anchor.BN(jupiterAmount))
@@ -343,8 +346,6 @@ export class ArborClient {
                 new anchor.BN(feeBps),
                 admin,
                 usdcMint,
-                configBump,
-                authBump
             )
             .accountsPartial({
                 signer: this.provider.wallet.publicKey,
