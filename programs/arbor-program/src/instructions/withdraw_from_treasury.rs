@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, other::{GlobalConfig, ProgramAuthority}};
+use crate::{state::Order, other::{GlobalConfig}};
 
 #[derive(Accounts)]
 pub struct WithdrawFromTreasury<'info> {
@@ -12,14 +12,19 @@ pub struct WithdrawFromTreasury<'info> {
     pub admin: Signer<'info>,
 
 
-    #[account(mut, seeds = [b"auth"], bump = program_authority.bump)]
-    pub program_authority: Account<'info, ProgramAuthority>,
+    #[account(seeds = [b"config"], bump = global_config.bump, has_one = usdc_mint, has_one = admin)]
+    pub global_config: Account<'info, GlobalConfig>,
+
+
+    ///CHECK: This is safe. It's just used to sign things
+    #[account(mut, seeds = [b"auth"], bump = global_config.auth_bump)]
+    pub program_authority: UncheckedAccount<'info>,
 
     #[account(
         mut,
-        associated_token::token_program = token_program,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = admin
+        token::token_program = token_program,
+        token::mint = usdc_mint,
+        token::authority = admin
     )]
     pub admin_ata: InterfaceAccount<'info, TokenAccount>,
 
@@ -52,7 +57,7 @@ impl<'info> WithdrawFromTreasury<'info> {
         let signer_seeds : [&[&[u8]] ;1]= [&[
             b"auth",
             self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
+            &[self.global_config.auth_bump]]
         ];
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, &signer_seeds);

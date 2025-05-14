@@ -7,10 +7,5 @@ pub struct GlobalConfig {
     pub admin: Pubkey,
     pub usdc_mint: Pubkey,
     pub bump:  u8,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct ProgramAuthority {
-    pub bump: u8,
+    pub auth_bump: u8,
 }

@@ -2,45 +2,44 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, other::{GlobalConfig, ProgramAuthority}};
+use crate::{state::Order, other::{GlobalConfig}};
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct ClaimYield<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
     #[account(
         mut,
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = program_authority
+        token::token_program = token_program,
+        token::mint = global_config.usdc_mint,
+        token::authority = owner
     )]
     pub owner_ata: InterfaceAccount<'info,TokenAccount>,
 
     #[account(mint::token_program = token_program)]
     pub usdc_mint: InterfaceAccount<'info,Mint>,
 
+    
     #[account(
-        init,
-        payer = owner,
-        space = Order::INIT_SPACE,
-        seeds = [b"order", owner.key().as_ref(), &seed.to_le_bytes()],
-        bump
+        seeds = [b"order", order.owner.key().as_ref(), &order.seed.to_le_bytes()],
+        bump = order.bump
     )]
     pub order: Account<'info, Order>,
 
-    #[account(mut, seeds = [b"config"], bump = global_config.bump)]
+    #[account(seeds = [b"config"], bump = global_config.bump, has_one = usdc_mint)]
     pub global_config: Account<'info, GlobalConfig>,
 
-    #[account(seeds = [b"auth"], bump)]
-    pub program_authority: Account<'info, ProgramAuthority>,
+
+    ///CHECK: This is safe. It's just used to sign things
+    #[account(seeds = [b"auth"], bump = global_config.auth_bump)]
+    pub program_authority: UncheckedAccount<'info>,
 
 
     #[account(
         mut,
         seeds = [b"vault", b"jupit", order.key().as_ref()],
-        bump,
+        bump = order.jup_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
@@ -51,7 +50,7 @@ pub struct ClaimYield<'info> {
     #[account(
         mut,
         seeds = [b"vault", b"drift", order.key().as_ref()],
-        bump,
+        bump = order.drift_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
         token::token_program = token_program,
@@ -76,19 +75,24 @@ impl<'info> ClaimYield<'info> {
         let cpi_program = self.token_program.to_account_info();
 
         let transfer_accounts = TransferChecked {
-            from: protocol_vault,
+            from: protocol_vault.to_account_info(),
             mint: self.usdc_mint.to_account_info(),
             to: self.owner_ata.to_account_info(),
             authority: self.program_authority.to_account_info()
         };
 
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
+
+        let seeds = &[
+            &b"auth"[..],
+            &[self.global_config.auth_bump],
         ];
 
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, &signer_seeds);
+        let signer_seeds = &[&seeds[..]];
+
+        // let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
+
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, signer_seeds);
 
         transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
     }

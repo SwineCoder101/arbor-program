@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{error::ArborError, other::{GlobalConfig, ProgramAuthority}, state::Order};
+use crate::{error::ArborError, other::{GlobalConfig}, state::Order};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -11,16 +11,17 @@ pub struct CreateOrder<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    
     #[account(
         mut,
-        associated_token::token_program = token_program,
-        associated_token::mint = global_config.usdc_mint,
-        associated_token::authority = owner
+        token::token_program = token_program,
+        token::mint = global_config.usdc_mint,
+        token::authority = owner
     )]
-    pub owner_ata: InterfaceAccount<'info,TokenAccount>,
+    pub owner_ata: Box<InterfaceAccount<'info,TokenAccount>>,
 
     #[account(mint::token_program = token_program)]
-    pub usdc_mint: InterfaceAccount<'info,Mint>,
+    pub usdc_mint: Box<InterfaceAccount<'info,Mint>>,
 
     #[account(
         init,
@@ -31,15 +32,16 @@ pub struct CreateOrder<'info> {
     )]
     pub order: Account<'info, Order>,
 
-    #[account(mut, seeds = [b"config"], bump = global_config.bump)]
+    #[account(seeds = [b"config"], bump = global_config.bump, has_one = usdc_mint)]
     pub global_config: Account<'info, GlobalConfig>,
 
-    #[account(mut, seeds = [b"auth"], bump)]
-    pub program_authority: Account<'info, ProgramAuthority>,
+    /// CHECK: This is safe
+    #[account(seeds = [b"auth"], bump = global_config.auth_bump)]
+    pub program_authority: UncheckedAccount<'info>,
 
 
     #[account(
-        init_if_needed,
+        init, // TODO: init in the client side to resolve stack issues
         payer = owner,
         seeds = [b"vault", b"jupit", order.key().as_ref()],
         bump,
@@ -47,11 +49,11 @@ pub struct CreateOrder<'info> {
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub jupiter_vault: InterfaceAccount<'info, TokenAccount>,
+    pub jupiter_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
 
     #[account(
-        init_if_needed,
+        init,
         payer = owner,
         seeds = [b"vault", b"drift", order.key().as_ref()],
         bump,
@@ -59,7 +61,7 @@ pub struct CreateOrder<'info> {
         token::authority = program_authority,
         token::token_program = token_program,
     )]
-    pub drift_vault: InterfaceAccount<'info, TokenAccount>,
+    pub drift_vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -68,7 +70,7 @@ pub struct CreateOrder<'info> {
 
 impl<'info> CreateOrder<'info> {
 
-    #[allow(clippy::too_many_arguments)]
+    // #[allow(clippy::too_many_arguments)]
     pub fn create_order(
         &mut self,
         seed: u64,
@@ -107,26 +109,13 @@ impl<'info> CreateOrder<'info> {
             last_price_pv,
             drift_perp_amount,
             jup_perp_amount,
+            jup_vault_bump: bumps.jupiter_vault,
+            drift_vault_bump: bumps.drift_vault
         });
 
         self.transfer_to_vault(drift_perp_amount, self.drift_vault.to_account_info())?;
         self.transfer_to_vault(jup_perp_amount, self.jupiter_vault.to_account_info())
 
-    }
-
-    pub fn top_up_order(&mut self, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
-
-        require_eq!(self.order.owner, self.owner.key(), ArborError::UnAuthorizedTopUpOrder);
-        
-        if drift_amount > 0 {
-            self.transfer_to_vault(drift_amount, self.drift_vault.to_account_info())?;
-            self.order.drift_perp_amount += drift_amount;
-        }
-        if jupiter_amount > 0 {
-            self.transfer_to_vault(jupiter_amount, self.jupiter_vault.to_account_info())?;
-            self.order.jup_perp_amount += jupiter_amount;
-        }
-        Ok(())
     }
 
     fn transfer_to_vault(&mut self, amount : u64, protocol_vault: AccountInfo<'info> ) -> Result<()> {
@@ -141,35 +130,6 @@ impl<'info> CreateOrder<'info> {
 
         let cpi_ctx = CpiContext::new(transfer_cpi_program.clone(), transfer_accounts);
         
-        transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
-    }
-
-    pub fn claim_yield(&mut self, drift_yield: u64, jupiter_yield: u64) -> Result<()> {
-
-        self.transfer_to_user(drift_yield, self.drift_vault.to_account_info())?;
-        self.transfer_to_user(jupiter_yield, self.jupiter_vault.to_account_info())?;
-
-        Ok(())
-    }
-
-    pub fn transfer_to_user(&mut self, amount: u64, protocol_vault: AccountInfo<'info>) -> Result<()> {
-        let cpi_program = self.token_program.to_account_info();
-
-        let transfer_accounts = TransferChecked {
-            from: protocol_vault,
-            mint: self.usdc_mint.to_account_info(),
-            to: self.owner_ata.to_account_info(),
-            authority: self.program_authority.to_account_info()
-        };
-
-        let signer_seeds : [&[&[u8]] ;1]= [&[
-            b"auth",
-            self.program_authority.to_account_info().key.as_ref(),
-            &[self.program_authority.bump]]
-        ];
-
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, &signer_seeds);
-
         transfer_checked(cpi_ctx, amount, self.usdc_mint.decimals)
     }
 }

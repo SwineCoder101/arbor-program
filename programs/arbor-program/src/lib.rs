@@ -23,16 +23,16 @@ pub mod arbor_program {
         ctx.accounts.claim_yield(drift_yield, jupiter_yield)
     }
 
-    pub fn close_order(ctx: Context<CloseOrder>, seed: u64) -> Result<()> {
-        ctx.accounts.close_order(seed)
+    pub fn close_order(ctx: Context<CloseOrder>) -> Result<()> {
+        ctx.accounts.close_order()
     }
 
     pub fn withdraw_from_treasury(ctx: Context<WithdrawFromTreasury>, amount: u64) -> Result<()> {
         ctx.accounts.withdraw_from_treasury(amount)
     }
 
-    pub fn initialize_config(ctx: Context<InitializeConfig>, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey, bump: u8, program_authority_bump: u8) -> Result<()> {
-        ctx.accounts.initialize_config(fee_bps, admin, usdc_mint, bump, program_authority_bump)
+    pub fn initialize_config(ctx: Context<InitializeConfig>, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey) -> Result<()> {
+        ctx.accounts.initialize_config(ctx.bumps.global_config, ctx.bumps.program_authority, fee_bps, admin, usdc_mint)
     }
 
     // pub fn keeper_withdraw_yield(ctx: Context<KeeperWithdrawYield>, amount: u64) -> Result<()> {
@@ -42,7 +42,6 @@ pub mod arbor_program {
     pub fn create_order(
         ctx: Context<CreateOrder>,
         seed: u64,
-        bumps_in: u8,
         jup_perp_amount: u64,
         drift_perp_amount: u64,
         ratio_bps: u64,
@@ -52,17 +51,9 @@ pub mod arbor_program {
         jup_side: u8,
     ) -> Result<()> {
 
-        let bumps: CreateOrderBumps = CreateOrderBumps {
-            order: bumps_in,
-            program_authority: bumps_in,
-            jupiter_vault: bumps_in,
-            drift_vault: bumps_in,
-        };
-
-
         ctx.accounts.create_order(
             seed,
-            &bumps,
+            &ctx.bumps,
             jup_perp_amount,
             drift_perp_amount,
             ratio_bps,
