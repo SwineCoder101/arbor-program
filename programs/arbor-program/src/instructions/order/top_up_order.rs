@@ -2,7 +2,8 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
 
-use crate::{error::ArborError, other::{GlobalConfig}, state::Order};
+use crate::{state::{Order, GlobalConfig}};
+
 #[derive(Accounts)]
 pub struct TopUpOrder<'info> {
 
@@ -39,7 +40,7 @@ pub struct TopUpOrder<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        seeds = [b"vault-jup", order.key().as_ref()],
         bump = order.jup_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -50,7 +51,7 @@ pub struct TopUpOrder<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"drift", order.key().as_ref()],
+        seeds = [b"vault-drift", order.key().as_ref()],
         bump = order.drift_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -72,7 +73,7 @@ impl<'info> TopUpOrder<'info> {
         // self.order.drift_perp_amount = self.order.drift_perp_amount.check_add(drift_amount).ok_or(Error::whatever)?;
 
 
-        if drift_amount > 0  && drift_amount < u64::MAX{
+        if drift_amount > 0  && drift_amount < u64::MAX {
             self.transfer_to_vault(drift_amount, self.drift_vault.to_account_info())?;
             self.order.drift_perp_amount += drift_amount;
         }

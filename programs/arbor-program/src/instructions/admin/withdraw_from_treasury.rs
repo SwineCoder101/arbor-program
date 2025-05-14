@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, other::{GlobalConfig}};
+use crate::{error::ArborError, state::GlobalConfig};
 
 #[derive(Accounts)]
 pub struct WithdrawFromTreasury<'info> {
@@ -45,6 +45,9 @@ pub struct WithdrawFromTreasury<'info> {
 
 impl<'info> WithdrawFromTreasury<'info> {
     pub fn withdraw_from_treasury(&mut self, amount: u64) -> Result<()> {
+
+        require!(self.admin.key() == self.global_config.admin, ArborError::UnAuthorizedWithdrawFromTreasury);
+        
         let cpi_program = self.token_program.to_account_info();
 
         let transfer_accounts = TransferChecked {

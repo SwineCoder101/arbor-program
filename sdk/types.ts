@@ -17,6 +17,13 @@ export type OrderAccount = {
     lastArbitrageRate: BN;
 }
 
+export type TransferYieldToProtocolVaultsInput = {
+    seed: number,
+    signer: Keypair,
+    jupiterAmount: number,
+    driftAmount: number,
+}
+
 export type CreateOrderInput = {
     signer: Keypair,
     seed: number,

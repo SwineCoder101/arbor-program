@@ -2,8 +2,7 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{state::Order, other::{GlobalConfig}};
-
+use crate::{state::{Order, GlobalConfig}};
 #[derive(Accounts)]
 pub struct ClaimYield<'info> {
     #[account(mut)]
@@ -38,7 +37,7 @@ pub struct ClaimYield<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        seeds = [b"vault-jup", order.key().as_ref()],
         bump = order.jup_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -49,7 +48,7 @@ pub struct ClaimYield<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"drift", order.key().as_ref()],
+        seeds = [b"vault-drift", order.key().as_ref()],
         bump = order.drift_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -88,9 +87,6 @@ impl<'info> ClaimYield<'info> {
         ];
 
         let signer_seeds = &[&seeds[..]];
-
-        // let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
-
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, transfer_accounts, signer_seeds);
 

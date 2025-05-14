@@ -24,16 +24,19 @@ pub struct Order {
     pub drift_vault_bump: u8,
     pub jup_vault_bump: u8,
 
-
-    /* solend loan refs */
-    // pub reserve_address: Pubkey,
-    // pub liquidity_address: Pubkey,
-    // pub ctoken_mint: Pubkey,
-    // pub collateral_amount: u64,
-    // pub underlying_collateral_mint: Pubkey,
-
     /* bookkeeyping */
     pub last_price_pv: u64,
     pub last_arbitrage_rate: u64,
 
+}
+
+
+#[account]
+#[derive(Debug,InitSpace)]
+pub struct GlobalConfig {
+    pub fee_bps: u64,
+    pub admin: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub bump:  u8,
+    pub auth_bump: u8,
 }

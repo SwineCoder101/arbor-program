@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
-use crate::{error::ArborError, other::{GlobalConfig}, state::{order, Order}};
+use crate::{error::ArborError, state::{Order, GlobalConfig}};
 
 #[derive(Accounts)]
 pub struct CloseOrder<'info> {
@@ -40,7 +40,7 @@ pub struct CloseOrder<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        seeds = [b"vault-jup", order.key().as_ref()],
         bump = order.jup_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -51,7 +51,7 @@ pub struct CloseOrder<'info> {
 
     #[account(
         mut,
-        seeds = [b"vault", b"drift", order.key().as_ref()],
+        seeds = [b"vault-drift", order.key().as_ref()],
         bump = order.drift_vault_bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -67,7 +67,6 @@ pub struct CloseOrder<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl<'info> CloseOrder<'info> {
@@ -115,28 +114,6 @@ impl<'info> CloseOrder<'info> {
 
         close_account(cpi_ctx)
     }
-    
-
-    fn close_order_account(&mut self) -> Result<()> {
-
-        let cpi_program = self.system_program.to_account_info();
-
-
-        let close_accounts = CloseAccount {
-            account: self.order.to_account_info(),
-            destination: self.treasury_vault.to_account_info(),
-            authority: self.program_authority.to_account_info()
-        };
-
-        let signer_seeds: &[&[&[u8]]] = &[&[b"auth", &[self.global_config.auth_bump]]];
-
-
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, close_accounts, &signer_seeds);
-
-        close_account(cpi_ctx)
-    }
-
-
 
     fn charge_fee_to_treasury(&mut self, protocol_vault: AccountInfo<'info>, fee_amount: u64) -> Result<()> {
 

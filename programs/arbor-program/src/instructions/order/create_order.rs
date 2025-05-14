@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
-use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
+use anchor_spl::{token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked}};
 
-use crate::{error::ArborError, other::{GlobalConfig}, state::Order};
+use crate::{state::{Order, GlobalConfig}};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -41,9 +41,8 @@ pub struct CreateOrder<'info> {
 
 
     #[account(
-        init, // TODO: init in the client side to resolve stack issues
-        payer = owner,
-        seeds = [b"vault", b"jupit", order.key().as_ref()],
+        mut,
+        seeds = [b"vault-jup", order.key().as_ref()],
         bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -53,9 +52,8 @@ pub struct CreateOrder<'info> {
 
 
     #[account(
-        init,
-        payer = owner,
-        seeds = [b"vault", b"drift", order.key().as_ref()],
+        mut,
+        seeds = [b"vault-drift", order.key().as_ref()],
         bump,
         token::mint = usdc_mint,
         token::authority = program_authority,
@@ -65,12 +63,10 @@ pub struct CreateOrder<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 impl<'info> CreateOrder<'info> {
 
-    // #[allow(clippy::too_many_arguments)]
     pub fn create_order(
         &mut self,
         seed: u64,
@@ -87,14 +83,6 @@ impl<'info> CreateOrder<'info> {
         let last_arbitrage_rate = 0;
         let last_price_pv = 0;
 
-        // // 1. send USDC margin to Drift & Jupiter
-        // todo!("SPL Token transfers to margin accounts");
-
-        // // 2. open long + short perps
-        // todo!("Drift CPI: open_position");
-        // todo!("Jupiter Perps CPI: open_position");
-
-        // 3. write order fields
         self.order.set_inner(Order{
             seed,
             bump: bumps.order,
@@ -102,8 +90,8 @@ impl<'info> CreateOrder<'info> {
             is_open: true,
             ratio_bps,
             drift_perp_idx,
-            drift_side: drift_side.clamp(0, 1),
-            jup_side: jup_side.clamp(0, 1),
+            drift_side: drift_side,
+            jup_side: jup_side,
             jup_perp_idx,
             last_arbitrage_rate,
             last_price_pv,
