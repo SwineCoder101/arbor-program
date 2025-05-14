@@ -65,8 +65,8 @@ export async function setupTraderWallet(
 }
 
 
-export async function logBalancesUserTreasury(provider: anchor.AnchorProvider, client: ArborClient, trader: {wallet: Keypair, ata: PublicKey}, logMsg: string = "", treasuryVault: PublicKey, shouldLog: boolean = true) {
-    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, trader.wallet.publicKey);
+export async function logBalancesUserTreasury(provider: anchor.AnchorProvider, client: ArborClient, user : PublicKey, logMsg: string = "", treasuryVault: PublicKey, shouldLog: boolean = true) {
+    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, user);
     const usdcBalanceTreasury = await client.getVaultBalance(provider.connection, treasuryVault);
 
     if (shouldLog) {
@@ -78,11 +78,11 @@ export async function logBalancesUserTreasury(provider: anchor.AnchorProvider, c
     return {usdcBalanceTrader, usdcBalanceTreasury};
 }
 
-export async function logBalancesAfterOrderOpen(provider: anchor.AnchorProvider, client: ArborClient, openOrder: OpenOrder, trader: {wallet: Keypair, ata: PublicKey}, treasuryVault: PublicKey, logMsg: string = "", shouldLog: boolean = true) {
+export async function logBalancesAfterOrderOpen(provider: anchor.AnchorProvider, client: ArborClient, openOrder: OpenOrder, user: PublicKey, treasuryVault: PublicKey, logMsg: string = "", shouldLog: boolean = true) {
     const usdcBalanceDrift = await client.getVaultBalance(provider.connection, openOrder.driftVault);
     const usdcBalanceJupiter = await client.getVaultBalance(provider.connection, openOrder.jupiterVault);
     const usdcBalanceTreasury = await client.getVaultBalance(provider.connection, treasuryVault);
-    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, trader.wallet.publicKey);
+    const usdcBalanceTrader = await client.getUSDCBalanceOf(provider.connection, user);
 
     if (shouldLog) {
         console.log(logMsg);
