@@ -42,7 +42,7 @@ describe("arbor-program", () => {
         // Initialize config
         await client.initializeConfig(
             100, // 1% fee
-            provider.wallet.publicKey,
+            admin.publicKey,
             usdcMint.publicKey
         );
 
@@ -108,21 +108,21 @@ describe("arbor-program", () => {
     expect(order.isOpen).to.be.true;
   });
 
-  it.skip("creates order and then closes it successfully with fee transfer to treasury", async () => {
+  it("creates order and then closes it successfully with fee transfer to treasury", async () => {
 
-    const balancesBeforeOrder = await logBalancesUserTreasury(provider, client, trader, "Before creating order", treasuryVault, false);
+    const balancesBeforeOrder = await logBalancesUserTreasury(provider, client, trader.wallet.publicKey, "Before creating order", treasuryVault, false);
 
     const orderAddress = await createTestOrder(3);
     const openOrder = await client.getOpenOrderByAddress(orderAddress);
 
     //check protocol vault balances
-    const balancesAfterOrder =  await logBalancesAfterOrderOpen(provider, client, openOrder, trader, treasuryVault, "Before closing order", false);
+    const balancesAfterOrder =  await logBalancesAfterOrderOpen(provider, client, openOrder, trader.wallet.publicKey, treasuryVault, "Before closing order", false);
 
     await client.closeOrder({
       seed: 3,
       signer: trader.wallet
     });
-    const balancesAfterOrderClose =  await logBalancesUserTreasury(provider, client, trader, "After closing order", treasuryVault, false);
+    const balancesAfterOrderClose =  await logBalancesUserTreasury(provider, client, trader.wallet.publicKey, "After closing order", treasuryVault, false);
 
 
     // check transfers into protocol vault
@@ -135,7 +135,7 @@ describe("arbor-program", () => {
   });
 
 
-  it.skip("creates order successfully with 60% drift and 40% jupiter perp", async () => {
+  it("creates order successfully with 60% drift and 40% jupiter perp", async () => {
     const orderAddress = await client.createOrder({
       signer: trader.wallet,
       seed: 2,
@@ -152,14 +152,14 @@ describe("arbor-program", () => {
 
     console.log("openOrder: ", openOrder);
 
-    const balancesAfterOrder =  await logBalancesAfterOrderOpen(provider, client, openOrder, trader, treasuryVault, "Before closing order", false);
+    const balancesAfterOrder =  await logBalancesAfterOrderOpen(provider, client, openOrder, trader.wallet.publicKey, treasuryVault, "Before closing order", false);
 
     expect(balancesAfterOrder.usdcBalanceDrift.uiAmount).to.equal(1200);
     expect(balancesAfterOrder.usdcBalanceJupiter.uiAmount).to.equal(800);
   });
 
 
-  it.skip("creates order and throws unauthorized error when closing with wrong authority", async () => {
+  it("creates order and throws unauthorized error when closing with wrong authority", async () => {
     const orderAddress = await createTestOrder(4);
     console.log("orderAddress: ", orderAddress);
     try {
@@ -173,7 +173,7 @@ describe("arbor-program", () => {
     }
   });
 
-  it.skip("creates order and throws invalid side error when side is invalid", async () => {
+  it("creates order and throws invalid side error when side is invalid", async () => {
     try {
       await client.createOrder({
         signer: trader.wallet,
@@ -192,7 +192,7 @@ describe("arbor-program", () => {
     }
   });
 
-  it.skip("creates order and top ups successfully", async () => {
+  it("creates order and top ups successfully", async () => {
     const orderAddress = await createTestOrder(7);
 
     const treasuryVault = await client.getTreasuryVaultAddress();
@@ -212,7 +212,7 @@ describe("arbor-program", () => {
     expect(order.driftPerpAmount.toNumber()).to.be.greaterThan(1000000000);
   });
 
-  it.skip("creates order, generates yield and then claims yield successfully", async () => {
+  it("creates order, generates yield and then claims yield successfully", async () => {
     const orderAddress = await createTestOrder(6);
 
     console.log("Expected order PDA:", orderAddress.toBase58());
@@ -239,7 +239,7 @@ describe("arbor-program", () => {
     order = await client.getOrder(6, trader.wallet);
   });
 
-  it.skip("creates order and throws unauthorized error when claiming yield with wrong authority", async () => {
+  it("creates order and throws unauthorized error when claiming yield with wrong authority", async () => {
     await createTestOrder(8);
     try {
       await client.claimYield({
@@ -252,7 +252,7 @@ describe("arbor-program", () => {
       }
   });
 
-  it.skip("creates order and throws unauthorized error when top up with wrong authority", async () => {
+  it("creates order and throws unauthorized error when top up with wrong authority", async () => {
     const orderAddress = await createTestOrder(9);
     try {
       await client.topUpOrder({
@@ -269,7 +269,7 @@ describe("arbor-program", () => {
     }
   });
 
-  it.skip("Transfers yield to protocol vaults successfully", async () => {
+  it("Transfers yield to protocol vaults successfully", async () => {
     const orderAddress = await createTestOrder(11);
 
     await client.transferYieldToProtocolVaults({
@@ -281,29 +281,36 @@ describe("arbor-program", () => {
 
     const openOrder = await client.getOpenOrderByAddress(orderAddress);
 
-    const balancesAfterTransfer = await logBalancesAfterOrderOpen(provider, client, openOrder, trader, treasuryVault, "After transferring yield", false);
+    const balancesAfterTransfer = await logBalancesAfterOrderOpen(provider, client, openOrder, trader.wallet.publicKey, treasuryVault, "After transferring yield", false);
 
     expect(balancesAfterTransfer.usdcBalanceDrift.uiAmount).to.equal(1001);
     expect(balancesAfterTransfer.usdcBalanceJupiter.uiAmount).to.equal(1001);
 
   });
 
-  // it("withdraws fees from treasury successfully", async () => {
-  //   const orderAddress = await createTestOrder(10);
-  //   await client.withdrawFromTreasury({
-  //     seed: 10,
-  //     amount: 1_000_000,
-  //     signer: trader.wallet
-  //   });
-  // });
+  it("withdraws fees from treasury successfully", async () => {
+    await createTestOrder(10);
+    await client.withdrawFromTreasury(1_000_000,admin);
 
-  // it("creates order, experience impermanent loss and closes order successfully", async () => {
-  //   // const tx = await client.createOrder(1, 1000000, 1000000, 5000, 0, 0, 0, 1);
-  // });
+    const balancesAfterWithdraw = await logBalancesUserTreasury(provider, client, admin.publicKey, "After withdrawing from treasury", treasuryVault, false);
 
+    expect(balancesAfterWithdraw.usdcBalanceTreasury.uiAmount).to.equal(19);
+  });
 
+  it("creates order, keeper withdraws successfully to replicate impermanent loss", async () => {
+    const orderAddress = await createTestOrder(12);
 
+    const balancesBeforeWithdraw = await logBalancesUserTreasury(provider, client, trader.wallet.publicKey, "Before withdrawing from treasury", treasuryVault, false);
 
+    await client.keeperWithdraw(1_000_000, 1_000_000, orderAddress, admin);
+
+    const balancesAfterWithdraw = await logBalancesUserTreasury(provider, client, trader.wallet.publicKey, "After withdrawing from treasury", treasuryVault, false);
+
+    const treasuryDiff = balancesAfterWithdraw.usdcBalanceTreasury.uiAmount - balancesBeforeWithdraw.usdcBalanceTreasury.uiAmount;
+
+    expect(treasuryDiff).to.be.equal(2);
+
+  });
 
 });
 

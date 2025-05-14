@@ -24,6 +24,11 @@ export type TransferYieldToProtocolVaultsInput = {
     driftAmount: number,
 }
 
+export type WithdrawFromTreasuryInput = {
+    amount: number,
+    admin: Keypair,
+}
+
 export type CreateOrderInput = {
     signer: Keypair,
     seed: number,

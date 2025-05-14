@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use anchor_spl::{associated_token::*, token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
+use anchor_spl::{token::{Token}, token_interface::{transfer_checked, Mint, TokenAccount, TransferChecked, close_account, CloseAccount}};
 use crate::{error::ArborError, state::{Order, GlobalConfig}};
 
 #[derive(Accounts)]

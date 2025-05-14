@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { ArborProgram } from "../target/types/arbor_program";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, OpenOrder, TopUpOrderInput, TransferYieldToProtocolVaultsInput } from "./types";
+import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, OpenOrder, TopUpOrderInput, TransferYieldToProtocolVaultsInput, WithdrawFromTreasuryInput } from "./types";
 import * as spl from "@solana/spl-token";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
@@ -177,12 +177,8 @@ export class ArborClient {
     driftSide,
     jupSide
   }: CreateOrderInput) {
-    console.log("creating order...");
-    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
     const globalConfigAddress = await this.getGlobalConfigAddress();
     const programAuthorityAddress = await this.getProgramAuthorityAddress();
-    const [jupiterVaultAddress, jupiterBump] = await ArborClient.findVaultAddress(orderAddress, "jup");
-    const [driftVaultAddress, driftBump] = await ArborClient.findVaultAddress(orderAddress, "drift");
     const globalConfig = await this.getGlobalConfig();
     
     const ownerAta = await anchor.utils.token.associatedAddress({
@@ -190,16 +186,20 @@ export class ArborClient {
       owner: signer.publicKey,
     });
 
+    const {orderAddress, driftVault : driftVaultAddress, jupiterVault : jupiterVaultAddress, driftBump, jupiterBump} = await this.initializeProtocolVaults(signer, seed);
+
+
+
     // verify accounts exist
-    console.log("globalConfigAddress", globalConfigAddress.toBase58());
-    console.log("programAuthorityAddress", programAuthorityAddress.toBase58());
-    console.log("jupiterVaultAddress", jupiterVaultAddress.toBase58());
-    console.log("driftVaultAddress", driftVaultAddress.toBase58());
-    console.log("ownerAta", ownerAta.toBase58());
-    console.log("orderAddress", orderAddress.toBase58());
+    // console.log("globalConfigAddress", globalConfigAddress.toBase58());
+    // console.log("programAuthorityAddress", programAuthorityAddress.toBase58());
+    // console.log("jupiterVaultAddress", jupiterVaultAddress.toBase58());
+    // console.log("driftVaultAddress", driftVaultAddress.toBase58());
+    // console.log("ownerAta", ownerAta.toBase58());
+    // console.log("orderAddress", orderAddress.toBase58());
 
 
-    const tx =await this.program.methods
+    const tx = await this.program.methods
       .createOrder(
         new anchor.BN(seed),
         new anchor.BN(jupPerpAmount),
@@ -429,22 +429,82 @@ export class ArborClient {
         throw error;
     }
 }
+  async withdrawFromTreasury(amount: number, admin: Keypair) {
 
-  async withdrawFromTreasury(amount: number) {
+    const programAuthorityAddress = await this.getProgramAuthorityAddress();
+    if (!this.TREASURY_VAULT_ADDRESS) {
+        throw Error('Treasury vault not initialized');
+    }
+
+    if (!this.GLOBAL_CONFIG_ACCOUNT) {
+        throw Error('Global config not initialized');
+    }
+
+    if (this.globalConfig.admin.toBase58() !== admin.publicKey.toBase58()) {
+        throw Error('Invalid admin account');
+    }
+
+    const adminAta = await getOrCreateAssociatedTokenAccount(
+        this.provider.connection,
+        admin,
+        this.globalConfig.usdcMint,
+        admin.publicKey,
+        true,
+    );
+
     return await this.program.methods
-      .withdrawFromTreasury(new anchor.BN(amount))
-      .accountsPartial({
-        admin: this.provider.wallet.publicKey,
-      })
+        .withdrawFromTreasury(new anchor.BN(amount))
+        .accountsPartial({
+            admin: admin.publicKey,
+            treasuryVault: this.TREASURY_VAULT_ADDRESS,
+            globalConfig: this.GLOBAL_CONFIG_ACCOUNT,
+            adminAta: adminAta.address,
+            usdcMint: this.globalConfig.usdcMint, // Add missing
+            programAuthority: programAuthorityAddress, // Add missing
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
   }
 
-  async keeperWithdraw(driftAmount: number, jupiterAmount: number) {
+  async keeperWithdraw(
+    driftAmount: number, 
+    jupiterAmount: number,
+    order: PublicKey,
+    admin: Keypair
+) {
+
+    const [jupiterVaultAddress] = await ArborClient.findVaultAddress(order, "jup");
+    const [driftVaultAddress] = await ArborClient.findVaultAddress(order, "drift");
+
+    if (!this.GLOBAL_CONFIG_ACCOUNT) {
+        throw Error('Global config not initialized');
+    }
+
+    if (this.globalConfig.admin.toBase58() !== admin.publicKey.toBase58()) {
+        throw Error('Invalid admin account');
+    }
+
     return await this.program.methods
-      .keeperWithdraw(new anchor.BN(driftAmount), new anchor.BN(jupiterAmount))
-      .accountsPartial({
-        admin: this.provider.wallet.publicKey,
-      })
-  }
+        .keeperWithdraw(
+            new anchor.BN(driftAmount),
+            new anchor.BN(jupiterAmount)
+        )
+        .accountsPartial({
+            admin: admin.publicKey,
+            usdcMint: this.globalConfig.usdcMint,
+            globalConfig: this.GLOBAL_CONFIG_ACCOUNT,
+            programAuthority: this.PROGRAM_AUTHORITY_ACCOUNT,
+            jupiterVault: jupiterVaultAddress,
+            driftVault: driftVaultAddress,
+            treasuryVault: this.TREASURY_VAULT_ADDRESS,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+}
 
   async initializeProtocolVaults(signer: Keypair, seed: number) {
 
@@ -462,10 +522,10 @@ export class ArborClient {
       }).signers([signer])
       .rpc();
 
-      const [jupiterVault] = await ArborClient.findVaultAddress(orderAddress, "jup");
-      const [driftVault] = await ArborClient.findVaultAddress(orderAddress, "drift");
+      const [jupiterVault, jupiterBump] = await ArborClient.findVaultAddress(orderAddress, "jup");
+      const [driftVault, driftBump] = await ArborClient.findVaultAddress(orderAddress, "drift");
 
-      return {orderAddress, jupiterVault, driftVault};
+      return {orderAddress, jupiterVault, driftVault, jupiterBump, driftBump};
 
   }
 
