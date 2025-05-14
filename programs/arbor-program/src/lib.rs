@@ -15,6 +15,25 @@ declare_id!("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
 pub mod arbor_program {
     use super::*;
 
+    // admin instructions
+    pub fn withdraw_from_treasury(ctx: Context<WithdrawFromTreasury>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw_from_treasury(amount)
+    }
+    
+    pub fn initialize_config(ctx: Context<InitializeConfig>, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey) -> Result<()> {
+        ctx.accounts.initialize_config(ctx.bumps.global_config, ctx.bumps.program_authority, fee_bps, admin, usdc_mint)
+    }
+    
+    pub fn keeper_withdraw(ctx: Context<KeeperWithdraw>, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
+        ctx.accounts.keeper_withdraw(drift_amount, jupiter_amount)
+    }
+
+    // order instructions
+
+    pub fn create_protocol_vaults(ctx: Context<CreateProtocolVaults>, order: Pubkey) -> Result<()> {
+        ctx.accounts.create_protocol_vaults(&ctx.bumps, order)
+    }
+
     pub fn top_up_order(ctx: Context<TopUpOrder>, drift_amount: u64, jupiter_amount: u64) -> Result<()> {
         ctx.accounts.top_up_order(drift_amount, jupiter_amount)
     }
@@ -26,18 +45,6 @@ pub mod arbor_program {
     pub fn close_order(ctx: Context<CloseOrder>) -> Result<()> {
         ctx.accounts.close_order()
     }
-
-    pub fn withdraw_from_treasury(ctx: Context<WithdrawFromTreasury>, amount: u64) -> Result<()> {
-        ctx.accounts.withdraw_from_treasury(amount)
-    }
-
-    pub fn initialize_config(ctx: Context<InitializeConfig>, fee_bps: u64, admin: Pubkey, usdc_mint: Pubkey) -> Result<()> {
-        ctx.accounts.initialize_config(ctx.bumps.global_config, ctx.bumps.program_authority, fee_bps, admin, usdc_mint)
-    }
-
-    // pub fn keeper_withdraw_yield(ctx: Context<KeeperWithdrawYield>, amount: u64) -> Result<()> {
-    //     ctx.accounts.keeper_withdraw_yield(amount)
-    // }
 
     pub fn create_order(
         ctx: Context<CreateOrder>,

@@ -13,4 +13,8 @@ pub enum ArborError {
     UnAuthorizedTopUpOrder,
     #[msg("client error: Invalid side, please check the side of the order")]
     InvalidSide,
+    #[msg("Unauthorized keeper withdraw")]
+    UnAuthorizedKeeperWithdraw,
+    #[msg("Unauthorized withdraw from treasury")]
+    UnAuthorizedWithdrawFromTreasury,
 }
