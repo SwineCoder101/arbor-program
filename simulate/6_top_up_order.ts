@@ -1,16 +1,26 @@
+import { ArborClient } from "../sdk/arbor-client";
 import { initClient, logBalances } from "./util";
+import * as fs from 'fs';
+import * as path from 'path';
+import PublicKey from "@solana/web3.js";
 
 async function main() {
   const { client, trader } = await initClient();
-  
-  const [orderAddress] = await client.findOrderAddress(trader.publicKey, 1);
-  const treasuryVault = await client.getTreasuryVaultAddress();
+
+  client.setGlobalConfig();
+
+  const accountInfoPath = path.join(__dirname, 'account_info.json');
+  const accountInfo = JSON.parse(fs.readFileSync(accountInfoPath, 'utf8'));
+  const [orderAddress] = await ArborClient.findOrderAddress(trader.publicKey, 3);
+  const treasuryVault = await client.getTreasuryVaultAddress(accountInfo?.usdcMint);
+
+  console.log("treasury vault: ", treasuryVault);
   
   console.log("Topping up order...");
   await client.topUpOrder({
-    seed: 1,
-    driftAmount: 500_000, // 0.5 USDC
-    jupiterAmount: 500_000, // 0.5 USDC
+    seed: 3,
+    driftAmount: 1000_000,
+    jupiterAmount: 1000_000,
     treasuryVault,
     signer: trader,
     order: orderAddress

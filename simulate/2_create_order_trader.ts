@@ -10,15 +10,15 @@ async function main() {
   const accountInfoPath = path.join(__dirname, 'account_info.json');
   const accountInfo = JSON.parse(fs.readFileSync(accountInfoPath, 'utf8'));
 
-  await client.setGlobalConfig();
-
-  
   console.log("Creating order...");
+
+  // Make sure to update the seed for every new order on the same trader
+  
   const orderAddress = await client.createOrder({
     signer: trader,
-    seed: 1,
-    jupPerpAmount: 1_000_000, // 1 USDC
-    driftPerpAmount: 1_000_000, // 1 USDC
+    seed: 3,
+    jupPerpAmount: 500_000_000, // 1 USDC
+    driftPerpAmount: 500_000_000, // 1 USDC
     ratioBps: 5000, // 50/50 split
     driftPerpIdx: 0,
     jupPerpIdx: 0,

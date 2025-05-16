@@ -15,7 +15,7 @@ arbor_program = "AAJosF3mpieT9UwnTv7B9B1mR7TVm37xSKPP87kppKoL"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Devnet"
+cluster = "Localnet"
 wallet = "./Turbin3-wallet.json"
 
 [scripts]

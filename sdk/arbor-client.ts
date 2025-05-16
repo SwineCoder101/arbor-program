@@ -30,8 +30,6 @@ export class ArborClient {
 
   private orderCache: Map<PublicKey, OpenOrder> = new Map();
 
-
-
   public static ARBOR_PROGRAM_ID = new PublicKey(ArborProgramIDL.address);
 
   private GLOBAL_CONFIG_ACCOUNT: PublicKey;
@@ -83,7 +81,7 @@ export class ArborClient {
   }
 
   public async getProgramAuthorityAddress(): Promise<PublicKey> {
-    return this.PROGRAM_AUTHORITY_ACCOUNT || (this.PROGRAM_AUTHORITY_ACCOUNT = (await ArborClient.findProgramAuthorityAddress())[0]);
+    return (await ArborClient.findProgramAuthorityAddress())[0];
   }
 
   private async addOrderToCache(order: PublicKey, driftVault: PublicKey, jupiterVault: PublicKey, driftBump: number, jupiterBump: number) {
@@ -104,16 +102,59 @@ export class ArborClient {
     return treasuryAccount ? true : false;
   }
 
-  public async getTreasuryVaultAddress(): Promise<PublicKey> {
+  public async getTreasuryVaultAddress(usdcMint?: string): Promise<PublicKey> {
+    try {
+      const programAuthorityAddress = await this.getProgramAuthorityAddress();
+      if (!this.globalConfig) {
+        throw new Error("Global config not initialized, please call initializeConfig first");
+      }
 
-    const programAuthorityAddress = await this.getProgramAuthorityAddress();
-    if (!this.globalConfig) {
-      throw new Error("Global config not initialized, please call initializeConfig first");
+      // Use provided USDC mint if valid, otherwise fall back to global config
+      let useUsdcMint: PublicKey;
+      if (usdcMint) {
+        try {
+          useUsdcMint = new PublicKey(usdcMint);
+        } catch (e) {
+          console.warn("Invalid USDC mint provided, using global config mint");
+          useUsdcMint = this.globalConfig.usdcMint;
+        }
+      } else {
+        useUsdcMint = this.globalConfig.usdcMint;
+      }
+
+      console.log("Using USDC mint:", useUsdcMint.toBase58());
+      console.log("Program authority:", programAuthorityAddress.toBase58());
+
+      // Get the treasury vault address
+      const treasuryVault = getAssociatedTokenAddressSync(
+        useUsdcMint,
+        programAuthorityAddress,
+        true,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+
+      // Check if treasury vault already exists
+      const vaultInfo = await this.provider.connection.getAccountInfo(treasuryVault);
+      if (vaultInfo) {
+        console.log("Using existing treasury vault:", treasuryVault.toBase58());
+        this.TREASURY_VAULT_ADDRESS = treasuryVault;
+        return treasuryVault;
+      }
+
+      // Create new treasury vault if needed
+      this.TREASURY_VAULT_ADDRESS = await this.createTreasuryVault(
+        this.provider,
+        useUsdcMint,
+        programAuthorityAddress
+      );
+      
+      console.log("Created new treasury vault:", this.TREASURY_VAULT_ADDRESS.toBase58());
+      return this.TREASURY_VAULT_ADDRESS;
+    } catch (error) {
+      console.error("Error in getTreasuryVaultAddress:", error);
+      throw error;
     }
-    if (! await this.isTreasuryVaultInitialized()) {
-      this.TREASURY_VAULT_ADDRESS = await this.createTreasuryVault(this.provider, this.globalConfig.usdcMint, programAuthorityAddress);
-    }
-    return this.TREASURY_VAULT_ADDRESS;
   }
 
   public async getUSDCBalanceOf(connection: Connection, pubkey: PublicKey) {
@@ -162,6 +203,12 @@ export class ArborClient {
     console.log("Treasury vault created with signature:", signature);
   
     return treasuryVault;
+  }
+
+  async findOrder(user: PublicKey, seed: number) {
+    const [orderAddress] = await ArborClient.findOrderAddress(user, seed);
+    const order = await this.program.account.order.fetch(orderAddress);
+    return order;
   }
 
   async ensureAta(mint: PublicKey, owner: PublicKey): Promise<PublicKey> {
@@ -554,8 +601,8 @@ export class ArborClient {
     return this.orderCache.get(orderAddress);
   }
 
-  async getOpenOrder(seed: number, signer: Keypair) {
-    const [orderAddress] = await ArborClient.findOrderAddress(signer.publicKey, seed);
+  async getOpenOrder(seed: number, user: PublicKey) {
+    const [orderAddress] = await ArborClient.findOrderAddress(user, seed);
     return this.orderCache.get(orderAddress);
   }
 
