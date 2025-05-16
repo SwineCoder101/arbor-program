@@ -382,7 +382,6 @@ export class ArborClient {
     return await this.provider.sendAndConfirm(tx, [signer]);
   }
 
-
   async initializeConfig(feeBps: number, admin: PublicKey, usdcMint: PublicKey) {
     const [globalConfigAddress, configBump] = await ArborClient.findGlobalConfigAddress();
     const [programAuthorityAddress, authBump] = await ArborClient.findProgramAuthorityAddress();
@@ -582,5 +581,11 @@ export class ArborClient {
   async getGlobalConfig() {
     const [globalConfigAddress] = await ArborClient.findGlobalConfigAddress();
     return await this.program.account.globalConfig.fetch(globalConfigAddress);
+  }
+
+  async setGlobalConfig() {
+    const newGlobalConfig = await this.getGlobalConfig();
+    this.globalConfig = newGlobalConfig;
+    this.GLOBAL_CONFIG_ACCOUNT = (await ArborClient.findGlobalConfigAddress())[0];
   }
 } 
