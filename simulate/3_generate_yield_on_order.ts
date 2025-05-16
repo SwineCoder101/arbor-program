@@ -1,22 +1,21 @@
-import { initClient, logBalances } from "./util";
+import { ArborClient } from "../sdk/arbor-client";
+import { initClient, logBalances, transferYieldFromReserveToVault } from "./util";
 
 async function main() {
-  const { client, trader } = await initClient();
+  const { client, trader, usdcReserve } = await initClient();
   
-  console.log("Creating order...");
-  const orderAddress = await client.createOrder({
-    signer: trader,
-    seed: 1,
-    jupPerpAmount: 1_000_000, // 1 USDC
-    driftPerpAmount: 1_000_000, // 1 USDC
-    ratioBps: 5000, // 50/50 split
-    driftPerpIdx: 0,
-    jupPerpIdx: 0,
-    driftSide: 0, // long
-    jupSide: 1 // short
-  });
+  await client.setGlobalConfig();
   
-  console.log(`Order created: ${orderAddress}`);
+  const seed = 5;
+  
+  const [orderAddress] = await ArborClient.findOrderAddress(trader.publicKey,seed);
+
+  const [jupiterVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "jup");
+  const [driftVaultAddress] = await ArborClient.findVaultAddress(orderAddress, "drift");
+
+  await transferYieldFromReserveToVault(usdcReserve, driftVaultAddress,  2_000_000)
+  await transferYieldFromReserveToVault(usdcReserve, jupiterVaultAddress,  2_000_000)
+
   await logBalances(client, trader.publicKey);
 }
 

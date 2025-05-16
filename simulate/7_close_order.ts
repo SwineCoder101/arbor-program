@@ -2,10 +2,12 @@ import { initClient, logBalances } from "./util";
 
 async function main() {
   const { client, trader } = await initClient();
+
+  await client.setGlobalConfig();
   
   console.log("Closing order...");
   await client.closeOrder({
-    seed: 1,
+    seed: 5,
     signer: trader
   });
   
