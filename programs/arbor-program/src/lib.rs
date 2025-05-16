@@ -9,7 +9,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("4BS3mc2pR7WGrS1QDTraDzvtuEriHor114Epc2LJSFcC");
+declare_id!("AAJosF3mpieT9UwnTv7B9B1mR7TVm37xSKPP87kppKoL");
 
 #[program]
 pub mod arbor_program {

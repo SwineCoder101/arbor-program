@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/arbor_program.json`.
  */
 export type ArborProgram = {
-  "address": "4BS3mc2pR7WGrS1QDTraDzvtuEriHor114Epc2LJSFcC",
+  "address": "AAJosF3mpieT9UwnTv7B9B1mR7TVm37xSKPP87kppKoL",
   "metadata": {
     "name": "arborProgram",
     "version": "0.1.0",
