@@ -19,6 +19,7 @@ export async function initClient(): Promise<{
 }> {
   const admin = loadKeypair("./simulate/admin-keypair.json");
   const trader = loadKeypair("./simulate/trader-keypair.json");
+  const usdcReserve = loadKeypair("./simulate/usdc-reserve-keypair.json");
   
   const wallet = new anchor.Wallet(admin);
   const provider = new anchor.AnchorProvider(CONNECTION, wallet, {
