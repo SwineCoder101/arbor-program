@@ -1,23 +1,38 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { ArborProgram } from "../target/types/arbor_program";
+import { ArborProgram } from "./arbor_program";
+import * as ArborProgramIDL from "./arbor_program.json";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { ClaimYieldInput, CloseOrderInput, CreateOrderInput, GlobalConfigAccount, OpenOrder, TopUpOrderInput, TransferYieldToProtocolVaultsInput, WithdrawFromTreasuryInput } from "./types";
 import * as spl from "@solana/spl-token";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+
+
+export const IDL = ArborProgramIDL as ArborProgram;
+
 export class ArborClient {
   private program: Program<ArborProgram>;
   private provider: anchor.AnchorProvider;
 
   constructor(provider: anchor.AnchorProvider) {
     this.provider = provider;
-    this.program = anchor.workspace.ArborProgram as Program<ArborProgram>;
+    this.program = new Program(IDL, provider);
+    console.log("Provider wallet:", this.provider.wallet.publicKey.toBase58());
+    console.log("Anchor workspace program ID:", this.program.programId.toBase58());
+    
+    // Initialize properties to avoid linter errors
+    this.GLOBAL_CONFIG_ACCOUNT = PublicKey.default;
+    this.PROGRAM_AUTHORITY_ACCOUNT = PublicKey.default;
+    this.TREASURY_VAULT_ADDRESS = PublicKey.default;
+    this.globalConfig = {} as GlobalConfigAccount;
   }
 
   private orderCache: Map<PublicKey, OpenOrder> = new Map();
 
-  public static ARBOR_PROGRAM_ID = new PublicKey("82kzsHhGThuVdNvUm6eCchTL9CYTp6s7bufFZ3ARBtYH");
+
+
+  public static ARBOR_PROGRAM_ID = new PublicKey(ArborProgramIDL.address);
 
   private GLOBAL_CONFIG_ACCOUNT: PublicKey;
   private PROGRAM_AUTHORITY_ACCOUNT: PublicKey;
@@ -64,7 +79,7 @@ export class ArborClient {
   }
 
   public async getGlobalConfigAddress(): Promise<PublicKey> {
-    return this.GLOBAL_CONFIG_ACCOUNT || (this.GLOBAL_CONFIG_ACCOUNT = (await ArborClient.findGlobalConfigAddress())[0]);
+    return (await ArborClient.findGlobalConfigAddress())[0];
   }
 
   public async getProgramAuthorityAddress(): Promise<PublicKey> {
